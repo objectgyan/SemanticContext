@@ -91,7 +91,7 @@ The application service is the single entry point for indexing and querying. HTT
 - [x] Add stronger API validation and problem-details shaping
 - [ ] Wire a real MCP SDK adapter
 - [x] Improve semantic reranking signals further
-- [ ] Add richer index manifests for cross-run pruning and reconciliation
+- [x] Add richer index manifests for cross-run pruning and reconciliation
 
 ## Project Structure
 
@@ -203,6 +203,7 @@ Implemented:
 - API request validation with problem-details responses
 - MCP adapter skeleton
 - Manifest-backed repository and project metadata resource shapes for MCP
+- Atomic manifest persistence with cross-run pruning and reconciliation
 - Tests for extraction, filtering, reranking, delegation, and a small happy path
 - HTTP integration tests for validation and query delegation
 

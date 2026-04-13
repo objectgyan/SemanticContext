@@ -181,6 +181,54 @@ public sealed class IndexingTests
         Assert.Contains(projects[0].FilePaths, path => path.EndsWith("SampleTypes.cs", StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public async Task Changed_only_prunes_manifest_entries_when_a_file_is_removed()
+    {
+        var tempCache = CreateTempDirectory();
+        var tempSolutionRoot = CreateTempDirectory();
+        CopyDirectory(FixturePaths.TinySolutionRoot, tempSolutionRoot);
+
+        var solutionPath = Path.Combine(tempSolutionRoot, "TinySolution.sln");
+        var sampleTypesPath = Path.Combine(tempSolutionRoot, "src", "TinySolution", "SampleTypes.cs");
+        var store = new InMemoryVectorStore();
+        var indexer = CreateIndexer(store, tempCache);
+
+        var fullResult = await indexer.IndexAsync(new IndexRequest
+        {
+            SolutionPath = solutionPath,
+            RepoName = "TinySolution",
+            CommitSha = "abc123",
+            ReindexMode = ReindexMode.Full,
+        });
+
+        Assert.Equal(IndexStatus.Completed, fullResult.Status);
+
+        File.Delete(sampleTypesPath);
+
+        var changedOnlyResult = await indexer.IndexAsync(new IndexRequest
+        {
+            SolutionPath = solutionPath,
+            RepoName = "TinySolution",
+            CommitSha = "def456",
+            ReindexMode = ReindexMode.ChangedOnly,
+        });
+
+        Assert.Equal(IndexStatus.Completed, changedOnlyResult.Status);
+
+        var catalog = new FileIndexCatalog(Options.Create(new IndexingOptions
+        {
+            CacheDirectory = tempCache,
+            SnippetLength = 220,
+        }));
+
+        var repository = await catalog.GetRepositoryMetadataAsync("TinySolution");
+        var projects = await catalog.GetProjectMetadataAsync("TinySolution");
+
+        Assert.Null(repository);
+        Assert.Empty(projects);
+        Assert.Empty(store.Records);
+    }
+
     private static SolutionCodeIndexer CreateIndexer(InMemoryVectorStore store, string cacheDirectory)
     {
         return new SolutionCodeIndexer(
