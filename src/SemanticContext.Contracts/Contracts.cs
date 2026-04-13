@@ -40,6 +40,12 @@ public enum SymbolVisibility
     PrivateProtected = 6,
 }
 
+public enum EmbeddingProviderKind
+{
+    DeterministicHash = 0,
+    RemoteHttp = 1,
+}
+
 public sealed record IndexRequest
 {
     public string SolutionPath { get; init; } = string.Empty;
@@ -337,8 +343,20 @@ public sealed record QdrantOptions
 
 public sealed record EmbeddingProviderOptions
 {
+    public EmbeddingProviderKind Kind { get; init; } = EmbeddingProviderKind.DeterministicHash;
+
     [Range(1, 4096)]
     public int Dimension { get; init; } = 256;
+
+    [Url]
+    public string? EndpointUrl { get; init; }
+
+    public string? ApiKey { get; init; }
+
+    public string? Model { get; init; }
+
+    [Range(1, 300)]
+    public int TimeoutSeconds { get; init; } = 60;
 }
 
 public sealed record IndexingOptions

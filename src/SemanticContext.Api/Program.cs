@@ -28,6 +28,8 @@ builder.Services.AddOptions<QdrantOptions>()
 builder.Services.AddOptions<EmbeddingProviderOptions>()
     .BindConfiguration("EmbeddingProvider")
     .ValidateDataAnnotations()
+    .Validate(options => options.Kind != EmbeddingProviderKind.RemoteHttp || !string.IsNullOrWhiteSpace(options.EndpointUrl), "EmbeddingProvider:EndpointUrl is required when Kind is RemoteHttp.")
+    .Validate(options => options.Kind != EmbeddingProviderKind.RemoteHttp || Uri.IsWellFormedUriString(options.EndpointUrl, UriKind.Absolute), "EmbeddingProvider:EndpointUrl must be an absolute URI when Kind is RemoteHttp.")
     .ValidateOnStart();
 
 builder.Services.AddOptions<IndexingOptions>()
