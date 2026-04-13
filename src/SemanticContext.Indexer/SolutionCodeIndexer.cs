@@ -42,6 +42,9 @@ public sealed class SolutionCodeIndexer : ICodeIndexer
         var filesScanned = 0;
         var filesIndexed = 0;
         var chunksToUpsert = new List<CodeChunk>();
+        var vectorIdsToDelete = new HashSet<string>(StringComparer.Ordinal);
+        var currentManifest = new IndexManifest();
+        var currentDocumentPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         if (string.IsNullOrWhiteSpace(request.SolutionPath) || !File.Exists(request.SolutionPath))
         {
@@ -124,30 +127,57 @@ public sealed class SolutionCodeIndexer : ICodeIndexer
 
                 try
                 {
-                    var chunks = await ExtractChunksAsync(request, project, document, cancellationToken).ConfigureAwait(false);
+                    var documentPath = document.FilePath ?? string.Empty;
+                    var sourceText = await document.GetTextAsync(cancellationToken).ConfigureAwait(false);
+                    var documentHash = _contentHasher.ComputeHash(sourceText.ToString());
+                    currentDocumentPaths.Add(documentPath);
+
+                    if (request.ReindexMode == ReindexMode.ChangedOnly &&
+                        previousManifest.Documents.TryGetValue(documentPath, out var previousDocument) &&
+                        string.Equals(previousDocument.ContentHash, documentHash, StringComparison.Ordinal))
+                    {
+                        currentManifest.Documents[documentPath] = previousDocument;
+                        continue;
+                    }
+
+                    var chunks = await ExtractChunksAsync(request, project, document, sourceText, cancellationToken).ConfigureAwait(false);
+                    var chunkIds = chunks.Select(chunk => chunk.Id).ToHashSet(StringComparer.Ordinal);
+                    var previousDocumentManifest = previousManifest.Documents.TryGetValue(documentPath, out var existingDocumentManifest)
+                        ? existingDocumentManifest
+                        : null;
+
+                    if (request.ReindexMode == ReindexMode.ChangedOnly && previousDocumentManifest is not null)
+                    {
+                        foreach (var staleChunkId in previousDocumentManifest.ChunkIds.Where(chunkId => !chunkIds.Contains(chunkId)))
+                        {
+                            vectorIdsToDelete.Add(staleChunkId);
+                        }
+                    }
+
                     if (chunks.Count == 0)
                     {
+                        if (previousDocumentManifest is not null)
+                        {
+                            filesIndexed++;
+                        }
+
+                        currentManifest.Documents[documentPath] = new DocumentManifest
+                        {
+                            ContentHash = documentHash,
+                            ChunkIds = [],
+                        };
+
                         continue;
                     }
 
                     var documentHadUpserts = false;
                     foreach (var chunk in chunks)
                     {
-                        if (request.ReindexMode == ReindexMode.ChangedOnly &&
-                            previousManifest.ContentHashes.TryGetValue(chunk.Id, out var existingHash) &&
-                            string.Equals(existingHash, chunk.ContentHash, StringComparison.Ordinal))
-                        {
-                            continue;
-                        }
-
                         documentHadUpserts = true;
 
-                        if (previousManifest.ContentHashes.TryGetValue(chunk.Id, out var priorHash))
+                        if (previousDocumentManifest is not null && previousDocumentManifest.ChunkIds.Contains(chunk.Id, StringComparer.Ordinal))
                         {
-                            if (!string.Equals(priorHash, chunk.ContentHash, StringComparison.Ordinal))
-                            {
-                                updated++;
-                            }
+                            updated++;
                         }
                         else
                         {
@@ -155,8 +185,13 @@ public sealed class SolutionCodeIndexer : ICodeIndexer
                         }
 
                         chunksToUpsert.Add(chunk);
-                        previousManifest.ContentHashes[chunk.Id] = chunk.ContentHash;
                     }
+
+                    currentManifest.Documents[documentPath] = new DocumentManifest
+                    {
+                        ContentHash = documentHash,
+                        ChunkIds = chunkIds.OrderBy(id => id, StringComparer.Ordinal).ToList(),
+                    };
 
                     if (documentHadUpserts)
                     {
@@ -166,6 +201,20 @@ public sealed class SolutionCodeIndexer : ICodeIndexer
                 catch (Exception ex)
                 {
                     errors.Add($"Document failed for {document.FilePath}: {ex.Message}");
+                }
+            }
+        }
+
+        if (request.ReindexMode == ReindexMode.ChangedOnly)
+        {
+            foreach (var removedDocumentPath in previousManifest.Documents.Keys.Where(path => !currentDocumentPaths.Contains(path)))
+            {
+                if (previousManifest.Documents.TryGetValue(removedDocumentPath, out var removedDocument))
+                {
+                    foreach (var chunkId in removedDocument.ChunkIds)
+                    {
+                        vectorIdsToDelete.Add(chunkId);
+                    }
                 }
             }
         }
@@ -188,16 +237,35 @@ public sealed class SolutionCodeIndexer : ICodeIndexer
             try
             {
                 await _vectorStore.UpsertAsync(records, cancellationToken).ConfigureAwait(false);
-                await manifestStore.SaveAsync(request.RepoName, previousManifest, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
                 errors.Add($"Vector store write failed: {ex.Message}");
             }
         }
-        else if (request.ReindexMode == ReindexMode.Full)
+
+        if (vectorIdsToDelete.Count > 0)
         {
-            await manifestStore.SaveAsync(request.RepoName, previousManifest, cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await _vectorStore.DeleteByIdsAsync(vectorIdsToDelete.ToArray(), cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                errors.Add($"Vector delete failed: {ex.Message}");
+            }
+        }
+
+        if (errors.Count == 0)
+        {
+            try
+            {
+                await manifestStore.SaveAsync(request.RepoName, currentManifest, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                errors.Add($"Manifest save failed: {ex.Message}");
+            }
         }
 
         stopwatch.Stop();
@@ -218,6 +286,7 @@ public sealed class SolutionCodeIndexer : ICodeIndexer
         IndexRequest request,
         Project project,
         Document document,
+        SourceText sourceText,
         CancellationToken cancellationToken)
     {
         var root = await document.GetSyntaxRootAsync(cancellationToken).ConfigureAwait(false);
@@ -232,7 +301,6 @@ public sealed class SolutionCodeIndexer : ICodeIndexer
             return Array.Empty<CodeChunk>();
         }
 
-        var sourceText = await document.GetTextAsync(cancellationToken).ConfigureAwait(false);
         var chunks = new List<CodeChunk>();
 
         foreach (var node in root.DescendantNodesAndSelf())

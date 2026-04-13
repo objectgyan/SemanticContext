@@ -30,7 +30,14 @@ internal static class ChunkTextBuilder
 
 internal sealed class IndexManifest
 {
-    public Dictionary<string, string> ContentHashes { get; init; } = new(StringComparer.Ordinal);
+    public Dictionary<string, DocumentManifest> Documents { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+}
+
+internal sealed record DocumentManifest
+{
+    public string ContentHash { get; init; } = string.Empty;
+
+    public List<string> ChunkIds { get; init; } = [];
 }
 
 internal sealed class IndexManifestStore
@@ -70,4 +77,3 @@ internal sealed class IndexManifestStore
         return Path.Combine(_options.CacheDirectory, safeRepo, "manifest.json");
     }
 }
-

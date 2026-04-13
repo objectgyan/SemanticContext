@@ -178,7 +178,7 @@ Implemented:
 - Deterministic chunk formatting and summary generation
 - Qdrant-backed vector storage adapter
 - Deterministic local embedding provider
-- HTTP API with `/index`, `/query`, and `/health`
+- HTTP API with `/index`, `/query`, `/health`, and basic OpenAPI exposure
 - MCP adapter skeleton
 - Tests for extraction, filtering, reranking, delegation, and a small happy path
 
@@ -194,12 +194,12 @@ Not implemented yet:
 ## Recommended Next Improvements
 
 1. Add a real embedding provider adapter for local or remote models.
-2. Persist richer index state for more accurate `ChangedOnly` behavior.
-3. Add delete/update-by-symbol support to the vector store abstraction.
-4. Expand controller-action metadata extraction.
-5. Add MCP SDK wiring around the existing facade.
-6. Add repository/project metadata resources.
-7. Improve semantic reranking with more structured signals.
-8. Add a file watcher for continuous indexing.
-9. Add more fixture solutions and negative tests.
-10. Add OpenAPI metadata for the HTTP endpoints.
+2. Expand controller-action metadata extraction.
+3. Add MCP SDK wiring around the existing facade.
+4. Add repository/project metadata resources.
+5. Improve semantic reranking with more structured signals.
+6. Add a file watcher for continuous indexing.
+7. Add more fixture solutions and negative tests.
+8. Add stronger API validation and problem-details shaping.
+9. Add richer response summaries for semantic search.
+10. Add auth and tenancy controls for multi-user deployments.

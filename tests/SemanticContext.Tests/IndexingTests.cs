@@ -101,6 +101,45 @@ public sealed class IndexingTests
         Assert.Equal(first.Status, second.Status);
     }
 
+    [Fact]
+    public async Task Changed_only_removes_stale_symbols_when_a_file_drops_a_member()
+    {
+        var tempCache = CreateTempDirectory();
+        var tempSolutionRoot = CreateTempDirectory();
+        CopyDirectory(FixturePaths.TinySolutionRoot, tempSolutionRoot);
+
+        var solutionPath = Path.Combine(tempSolutionRoot, "TinySolution.sln");
+        var sampleTypesPath = Path.Combine(tempSolutionRoot, "src", "TinySolution", "SampleTypes.cs");
+        var store = new InMemoryVectorStore();
+        var indexer = CreateIndexer(store, tempCache);
+
+        var fullResult = await indexer.IndexAsync(new IndexRequest
+        {
+            SolutionPath = solutionPath,
+            RepoName = "TinySolution",
+            CommitSha = "abc123",
+            ReindexMode = ReindexMode.Full,
+        });
+
+        Assert.Equal(IndexStatus.Completed, fullResult.Status);
+        Assert.Contains(store.Records, record => GetString(record.Payload, "symbolName") == "SourceName" && GetString(record.Payload, "symbolKind") == "Property");
+
+        var rewrittenLines = await File.ReadAllLinesAsync(sampleTypesPath);
+        rewrittenLines = rewrittenLines.Where(line => !line.Contains("SourceName", StringComparison.Ordinal)).ToArray();
+        await File.WriteAllLinesAsync(sampleTypesPath, rewrittenLines);
+
+        var changedOnlyResult = await indexer.IndexAsync(new IndexRequest
+        {
+            SolutionPath = solutionPath,
+            RepoName = "TinySolution",
+            CommitSha = "def456",
+            ReindexMode = ReindexMode.ChangedOnly,
+        });
+
+        Assert.Equal(IndexStatus.Completed, changedOnlyResult.Status);
+        Assert.DoesNotContain(store.Records, record => GetString(record.Payload, "symbolName") == "SourceName" && GetString(record.Payload, "symbolKind") == "Property");
+    }
+
     private static SolutionCodeIndexer CreateIndexer(InMemoryVectorStore store, string cacheDirectory)
     {
         return new SolutionCodeIndexer(
@@ -121,6 +160,21 @@ public sealed class IndexingTests
         var path = Path.Combine(Path.GetTempPath(), "semanticcontext-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(path);
         return path;
+    }
+
+    private static void CopyDirectory(string sourceDirectory, string destinationDirectory)
+    {
+        foreach (var directory in Directory.GetDirectories(sourceDirectory, "*", SearchOption.AllDirectories))
+        {
+            Directory.CreateDirectory(directory.Replace(sourceDirectory, destinationDirectory, StringComparison.OrdinalIgnoreCase));
+        }
+
+        foreach (var file in Directory.GetFiles(sourceDirectory, "*", SearchOption.AllDirectories))
+        {
+            var destinationFile = file.Replace(sourceDirectory, destinationDirectory, StringComparison.OrdinalIgnoreCase);
+            Directory.CreateDirectory(Path.GetDirectoryName(destinationFile)!);
+            File.Copy(file, destinationFile, overwrite: true);
+        }
     }
 
     private static string GetString(IReadOnlyDictionary<string, object?> payload, string key)

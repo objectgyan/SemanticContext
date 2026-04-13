@@ -13,6 +13,7 @@ using SemanticContext.Retrieval;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddProblemDetails();
+builder.Services.AddOpenApi();
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
@@ -64,6 +65,11 @@ app.UseExceptionHandler(errorApp =>
     });
 });
 
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+}
+
 app.MapSemanticContextEndpoints();
 
 app.Run();
@@ -74,9 +80,15 @@ static class SemanticContextEndpointMapping
 {
     public static IEndpointRouteBuilder MapSemanticContextEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/health", SemanticContextEndpointHandlers.Health);
-        app.MapPost("/index", SemanticContextEndpointHandlers.IndexAsync);
-        app.MapPost("/query", SemanticContextEndpointHandlers.QueryAsync);
+        app.MapGet("/health", SemanticContextEndpointHandlers.Health)
+            .WithName("Health")
+            .WithOpenApi();
+        app.MapPost("/index", SemanticContextEndpointHandlers.IndexAsync)
+            .WithName("IndexSolution")
+            .WithOpenApi();
+        app.MapPost("/query", SemanticContextEndpointHandlers.QueryAsync)
+            .WithName("QueryCodeContext")
+            .WithOpenApi();
 
         return app;
     }

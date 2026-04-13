@@ -226,6 +226,8 @@ public interface IVectorStore
     Task<IReadOnlyList<VectorSearchResult>> SearchAsync(VectorSearchRequest request, CancellationToken cancellationToken = default);
 
     Task DeleteByRepoAsync(string repoName, CancellationToken cancellationToken = default);
+
+    Task DeleteByIdsAsync(IReadOnlyCollection<string> ids, CancellationToken cancellationToken = default);
 }
 
 public interface ICodeSummaryGenerator

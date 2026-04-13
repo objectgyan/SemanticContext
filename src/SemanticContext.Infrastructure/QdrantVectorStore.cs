@@ -108,6 +108,22 @@ public sealed class QdrantVectorStore : IVectorStore
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task DeleteByIdsAsync(IReadOnlyCollection<string> ids, CancellationToken cancellationToken = default)
+    {
+        if (ids.Count == 0)
+        {
+            return;
+        }
+
+        var client = await GetClientAsync(cancellationToken).ConfigureAwait(false);
+        using var response = await client.PostAsJsonAsync(
+            $"collections/{_options.CollectionName}/points/delete?wait=true",
+            new { points = ids },
+            cancellationToken).ConfigureAwait(false);
+
+        response.EnsureSuccessStatusCode();
+    }
+
     private async Task<HttpClient> GetClientAsync(CancellationToken cancellationToken)
     {
         if (_initialized)
@@ -264,4 +280,3 @@ public sealed class QdrantVectorStore : IVectorStore
         };
     }
 }
-

@@ -53,6 +53,16 @@ internal sealed class InMemoryVectorStore : IVectorStore
         return Task.CompletedTask;
     }
 
+    public Task DeleteByIdsAsync(IReadOnlyCollection<string> ids, CancellationToken cancellationToken = default)
+    {
+        foreach (var id in ids)
+        {
+            _records.Remove(id);
+        }
+
+        return Task.CompletedTask;
+    }
+
     private static bool MatchesFilters(IReadOnlyDictionary<string, object?> payload, string? repoName, CodeContextFilters? filters)
     {
         if (!string.IsNullOrWhiteSpace(repoName) &&
