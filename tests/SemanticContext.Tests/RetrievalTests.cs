@@ -155,6 +155,144 @@ public sealed class RetrievalTests
     }
 
     [Fact]
+    public async Task How_style_queries_prefer_exact_route_matches_over_broader_actions()
+    {
+        var searchProducts = new VectorSearchResult
+        {
+            Id = "search-exact",
+            Score = 0.71,
+            Payload = new Dictionary<string, object?>
+            {
+                ["repoName"] = "TinySolution",
+                ["projectName"] = "TinySolution.Api",
+                ["filePath"] = @"C:\\Projects\\TinySolution\\ApiSite\\Controllers\\Items\\_SearchItems.cs",
+                ["symbolId"] = "SearchItems",
+                ["symbolKind"] = CodeSymbolKind.ControllerAction.ToString(),
+                ["symbolName"] = "SearchItems",
+                ["signature"] = "ActionResult<List<SearchItemsResponse>> SearchItems(SearchItemsRequest args)",
+                ["summary"] = "ASP.NET ItemsController action that handles route api/items/search.",
+                ["chunkText"] = "SearchItems ActionResult<List<SearchItemsResponse>> SearchItems(SearchItemsRequest args) ASP.NET ItemsController action that handles route api/items/search.",
+                ["snippet"] = "[HttpPost(\"products/search\")]",
+                ["attributes"] = Array.Empty<string>(),
+                ["dependencies"] = Array.Empty<string>(),
+                ["routeTemplate"] = "api/items/search",
+                ["httpVerb"] = "HttpPost",
+                ["controllerName"] = "ItemsController",
+                ["isApiController"] = true,
+            },
+        };
+
+        var searchByDivision = new VectorSearchResult
+        {
+            Id = "search-broader",
+            Score = 0.92,
+            Payload = new Dictionary<string, object?>
+            {
+                ["repoName"] = "TinySolution",
+                ["projectName"] = "TinySolution.Api",
+                ["filePath"] = @"C:\\Projects\\TinySolution\\ApiSite\\Controllers\\Items\\_SearchItemsByCategory.cs",
+                ["symbolId"] = "SearchItemsByCategory",
+                ["symbolKind"] = CodeSymbolKind.ControllerAction.ToString(),
+                ["symbolName"] = "SearchItemsByCategory",
+                ["signature"] = "ActionResult<List<SearchItemsResponse>> SearchItemsByCategory(SearchItemsByCategoryRequest args)",
+                ["summary"] = "ASP.NET ItemsController action that handles route api/items/search-by-category.",
+                ["chunkText"] = "SearchItemsByCategory ActionResult<List<SearchItemsResponse>> SearchItemsByCategory(SearchItemsByCategoryRequest args) ASP.NET ItemsController action that handles route api/items/search-by-category.",
+                ["snippet"] = "[HttpGet(\"items/search-by-category\")]",
+                ["attributes"] = Array.Empty<string>(),
+                ["dependencies"] = Array.Empty<string>(),
+                ["routeTemplate"] = "api/items/search-by-category",
+                ["httpVerb"] = "HttpGet",
+                ["controllerName"] = "ItemsController",
+                ["isApiController"] = true,
+            },
+        };
+
+        var store = new StaticVectorStore([searchByDivision, searchProducts]);
+        var retriever = CreateRetriever(store);
+        var response = await retriever.QueryAsync(new CodeContextQuery
+        {
+            Query = "how is search handled",
+            RepoName = "TinySolution",
+            TopK = 5,
+            Filters = new CodeContextFilters
+            {
+                SymbolKinds = [CodeSymbolKind.ControllerAction],
+            },
+        });
+
+        Assert.NotEmpty(response.Results);
+        Assert.Equal("SearchItems", response.Results[0].SymbolName);
+        Assert.Equal("api/items/search", response.Results[0].RouteTemplate);
+    }
+
+    [Fact]
+    public async Task Architecture_queries_prefer_repository_overview_context()
+    {
+        var codeCandidate = new VectorSearchResult
+        {
+            Id = "controller-action",
+            Score = 0.94,
+            Payload = new Dictionary<string, object?>
+            {
+                ["repoName"] = "TinySolution",
+                ["projectName"] = "TinySolution.Api",
+                ["filePath"] = @"C:\\Projects\\TinySolution\\ApiSite\\Controllers\\Orders\\_GetOrder.cs",
+                ["symbolId"] = "GetOrder",
+                ["symbolKind"] = CodeSymbolKind.ControllerAction.ToString(),
+                ["symbolName"] = "GetOrder",
+                ["signature"] = "Task<IActionResult> GetOrder(Guid id, CancellationToken ct)",
+                ["summary"] = "Controller action that returns one order.",
+                ["chunkText"] = "GetOrder Task<IActionResult> GetOrder(Guid id, CancellationToken ct) Controller action that returns one order.",
+                ["snippet"] = "[HttpGet(\"api/orders/{id}\")]",
+                ["attributes"] = Array.Empty<string>(),
+                ["dependencies"] = Array.Empty<string>(),
+                ["routeTemplate"] = "api/orders/{id}",
+                ["httpVerb"] = "HttpGet",
+                ["controllerName"] = "OrdersController",
+                ["isApiController"] = true,
+            },
+        };
+
+        var catalog = new RecordingIndexCatalog
+        {
+            RepositoryMetadataToReturn = new RepositoryMetadata
+            {
+                RepoName = "TinySolution",
+                DocumentCount = 12,
+                ChunkCount = 40,
+                ProjectCount = 3,
+                ProjectNames = ["TinySolution.Api", "TinySolution.Core", "TinySolution.Infrastructure"],
+                SymbolKinds = ["Class", "Method", "ControllerAction"],
+            },
+            ProjectMetadataToReturn =
+            [
+                new ProjectMetadata
+                {
+                    RepoName = "TinySolution",
+                    ProjectName = "TinySolution.Api",
+                    DocumentCount = 4,
+                    ChunkCount = 16,
+                    SymbolKinds = ["ControllerAction", "Class"],
+                },
+            ],
+        };
+
+        var store = new StaticVectorStore([codeCandidate]);
+        var retriever = CreateRetriever(store, catalog);
+        var response = await retriever.QueryAsync(new CodeContextQuery
+        {
+            Query = "what is the current architecture",
+            RepoName = "TinySolution",
+            TopK = 5,
+        });
+
+        Assert.NotEmpty(response.Results);
+        Assert.Equal("TinySolution Architecture", response.Results[0].SymbolName);
+        Assert.Contains("projects", response.Results[0].Summary, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(response.Results, result => result.SymbolName == "TinySolution.Api Overview");
+    }
+
+    [Fact]
     public async Task End_to_end_index_and_query_returns_relevant_results()
     {
         var cacheDir = Path.Combine(Path.GetTempPath(), "semanticcontext-tests", Guid.NewGuid().ToString("N"));
@@ -197,11 +335,12 @@ public sealed class RetrievalTests
         Assert.False(string.IsNullOrWhiteSpace(response.Results[0].Summary));
     }
 
-    private static VectorStoreCodeContextRetriever CreateRetriever(InMemoryVectorStore store)
+    private static VectorStoreCodeContextRetriever CreateRetriever(IVectorStore store, IIndexCatalog? catalog = null)
     {
         return new VectorStoreCodeContextRetriever(
             new DeterministicHashEmbeddingProvider(Options.Create(new EmbeddingProviderOptions { Dimension = 256 })),
             store,
+            catalog ?? new RecordingIndexCatalog(),
             Options.Create(new RetrievalOptions { RerankWindowSize = 25, KeywordBoostMax = 12 }),
             NullLogger<VectorStoreCodeContextRetriever>.Instance);
     }

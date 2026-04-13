@@ -95,6 +95,29 @@ The application service is the single entry point for indexing and querying. HTT
 - [x] Wire a real MCP SDK adapter
 - [x] Add richer index manifests for cross-run pruning and reconciliation
 
+## Resume Point
+
+The core pipeline works, but the retrieval experience still needs to become more generally useful for real natural-language questions.
+
+What is not ideal yet:
+
+- Broad questions can still over-rank nearby controller actions or repository helpers instead of the most relevant architectural context.
+- Retrieval should not depend on hardcoded domain rules for specific features, routes, or product names.
+- The engine should answer questions like "what is the current architecture?" with the most relevant project, adapter, and pipeline details instead of only returning the closest symbol match.
+
+What we want instead:
+
+- Queries like "how is product search handled in Revit?" should resolve to the real controller entry point and supporting implementation without special-case knowledge baked into retrieval.
+- Queries like "what is the current architecture?" should surface the solution structure, project responsibilities, transport adapters, indexing flow, and storage abstractions.
+- Generic structural signals, better embeddings, and repo-aware metadata should drive ranking, not per-domain heuristics.
+
+How to resume this work later:
+
+1. Improve query understanding for architectural and explanatory questions.
+2. Add better repository-level and project-level context into retrieval.
+3. Strengthen ranking using generic structure, summaries, and metadata rather than hardcoded business terms.
+4. Add focused tests for broad question types like architecture, indexing flow, and feature ownership.
+
 ## Project Structure
 
 ```text

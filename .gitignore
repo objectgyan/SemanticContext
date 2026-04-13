@@ -10,3 +10,5 @@ TestResults/
 CoverageReport/
 artifacts/
 
+api.stderr.log
+api.stdout.log

@@ -229,6 +229,36 @@ internal sealed class RecordingIndexCatalog : IIndexCatalog
     }
 }
 
+internal sealed class StaticVectorStore : IVectorStore
+{
+    private readonly IReadOnlyList<VectorSearchResult> _results;
+
+    public StaticVectorStore(IEnumerable<VectorSearchResult> results)
+    {
+        _results = results.ToArray();
+    }
+
+    public Task UpsertAsync(IReadOnlyCollection<VectorRecord> records, CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyList<VectorSearchResult>> SearchAsync(VectorSearchRequest request, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(_results);
+    }
+
+    public Task DeleteByRepoAsync(string repoName, CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task DeleteByIdsAsync(IReadOnlyCollection<string> ids, CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
+}
+
 internal static class FixturePaths
 {
     public static string TinySolutionRoot =>
