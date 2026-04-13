@@ -85,9 +85,9 @@ The application service is the single entry point for indexing and querying. HTT
 - [x] HTTP API with `/index`, `/query`, `/health`, and OpenAPI metadata
 - [x] Tests for extraction, retrieval, reranking, adapter delegation, and ChangedOnly cleanup
 - [x] Draft PR published to GitHub
-- [ ] Add richer controller-action metadata and symbol context shapes
+- [x] Add richer controller-action metadata and symbol context shapes
+- [x] Add repository and project metadata resources for MCP
 - [ ] Wire a real MCP SDK adapter
-- [ ] Add repository and project metadata resources for MCP
 - [ ] Improve semantic reranking signals further
 - [ ] Add richer index manifests for cross-run pruning and reconciliation
 
@@ -194,6 +194,7 @@ Implemented:
 - Deterministic local embedding provider
 - HTTP API with `/index`, `/query`, `/health`, and basic OpenAPI exposure
 - MCP adapter skeleton
+- Manifest-backed repository and project metadata resource shapes for MCP
 - Tests for extraction, filtering, reranking, delegation, and a small happy path
 
 Not implemented yet:
@@ -210,10 +211,10 @@ Not implemented yet:
 1. Add a real embedding provider adapter for local or remote models.
 2. Expand controller-action metadata extraction.
 3. Add MCP SDK wiring around the existing facade.
-4. Add repository/project metadata resources.
-5. Improve semantic reranking with more structured signals.
-6. Add a file watcher for continuous indexing.
-7. Add more fixture solutions and negative tests.
-8. Add stronger API validation and problem-details shaping.
-9. Add richer response summaries for semantic search.
-10. Add auth and tenancy controls for multi-user deployments.
+4. Improve semantic reranking with more structured signals.
+5. Add a file watcher for continuous indexing.
+6. Add more fixture solutions and negative tests.
+7. Add stronger API validation and problem-details shaping.
+8. Add richer response summaries for semantic search.
+9. Add auth and tenancy controls for multi-user deployments.
+10. Add manifest diffing for repository-level change summaries.

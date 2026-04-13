@@ -53,6 +53,24 @@ public sealed class AdapterBoundaryTests
     [Fact]
     public async Task Mcp_facade_delegates_to_application_service()
     {
+        var catalog = new RecordingIndexCatalog
+        {
+            RepositoryMetadataToReturn = new RepositoryMetadata
+            {
+                RepoName = "repo",
+                DocumentCount = 3,
+            },
+            ProjectMetadataToReturn =
+            [
+                new ProjectMetadata
+                {
+                    RepoName = "repo",
+                    ProjectName = "ProjectA",
+                    DocumentCount = 1,
+                },
+            ],
+        };
+
         var service = new RecordingApplicationService
         {
             QueryResultToReturn = new CodeContextResponse
@@ -66,7 +84,7 @@ public sealed class AdapterBoundaryTests
             },
         };
 
-        var facade = new SemanticContextMcpFacade(service);
+        var facade = new SemanticContextMcpFacade(service, catalog);
 
         var search = await facade.SemanticSearchAsync(new CodeContextQuery
         {
@@ -80,11 +98,18 @@ public sealed class AdapterBoundaryTests
             CommitSha = "abc",
         });
         var symbol = await facade.GetSymbolContextAsync("repo", "file.cs", "GetOrderAsync");
+        var repository = await facade.GetRepositoryMetadataAsync("repo");
+        var projects = await facade.GetProjectMetadataAsync("repo");
 
         Assert.Equal(2, service.QueryCallCount);
         Assert.Equal(1, service.IndexCallCount);
         Assert.Equal("search", search.Query);
         Assert.Equal(IndexStatus.Completed, index.Status);
         Assert.Equal("GetOrderAsync", symbol.SymbolName);
+        Assert.Equal("repo", repository?.RepoName);
+        Assert.Single(projects);
+        Assert.Equal("ProjectA", projects[0].ProjectName);
+        Assert.Equal(1, catalog.RepositoryMetadataCallCount);
+        Assert.Equal(1, catalog.ProjectMetadataCallCount);
     }
 }

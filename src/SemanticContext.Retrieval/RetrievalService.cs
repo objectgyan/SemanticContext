@@ -129,6 +129,7 @@ public sealed class VectorStoreCodeContextRetriever : ICodeContextRetriever
         var result = new CodeContextResult
         {
             Score = Math.Round(score, 4),
+            ProjectName = GetString(payload, "projectName"),
             FilePath = filePath,
             SymbolName = symbolName,
             SymbolKind = ParseSymbolKind(symbolKindText),

@@ -202,6 +202,33 @@ internal sealed class RecordingApplicationService : ICodeContextApplicationServi
     }
 }
 
+internal sealed class RecordingIndexCatalog : IIndexCatalog
+{
+    public RepositoryMetadata? RepositoryMetadataToReturn { get; set; }
+
+    public IReadOnlyList<ProjectMetadata> ProjectMetadataToReturn { get; set; } = [];
+
+    public int RepositoryMetadataCallCount { get; private set; }
+
+    public int ProjectMetadataCallCount { get; private set; }
+
+    public string? LastRepoName { get; private set; }
+
+    public Task<RepositoryMetadata?> GetRepositoryMetadataAsync(string repoName, CancellationToken cancellationToken = default)
+    {
+        RepositoryMetadataCallCount++;
+        LastRepoName = repoName;
+        return Task.FromResult(RepositoryMetadataToReturn);
+    }
+
+    public Task<IReadOnlyList<ProjectMetadata>> GetProjectMetadataAsync(string repoName, CancellationToken cancellationToken = default)
+    {
+        ProjectMetadataCallCount++;
+        LastRepoName = repoName;
+        return Task.FromResult(ProjectMetadataToReturn);
+    }
+}
+
 internal static class FixturePaths
 {
     public static string TinySolutionRoot =>

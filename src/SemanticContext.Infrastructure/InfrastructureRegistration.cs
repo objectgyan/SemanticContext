@@ -21,6 +21,7 @@ public static class InfrastructureRegistration
         services.AddSingleton<IEmbeddingProvider, DeterministicHashEmbeddingProvider>();
         services.AddSingleton<IContentHasher, Sha256ContentHasher>();
         services.AddSingleton<IVectorStore, QdrantVectorStore>();
+        services.AddSingleton<IIndexCatalog, FileIndexCatalog>();
         return services;
     }
 }

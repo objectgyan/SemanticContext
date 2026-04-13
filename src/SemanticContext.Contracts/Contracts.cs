@@ -94,6 +94,8 @@ public sealed record CodeContextResult
 {
     public double Score { get; init; }
 
+    public string ProjectName { get; init; } = string.Empty;
+
     public string FilePath { get; init; } = string.Empty;
 
     public string SymbolName { get; init; } = string.Empty;
@@ -183,6 +185,62 @@ public sealed record CodeChunk
     public string? XmlDocumentation { get; init; }
 }
 
+public sealed record DocumentManifest
+{
+    public string ContentHash { get; init; } = string.Empty;
+
+    public string ProjectName { get; init; } = string.Empty;
+
+    public string FilePath { get; init; } = string.Empty;
+
+    public int ChunkCount { get; init; }
+
+    public IReadOnlyList<string> ChunkIds { get; init; } = Array.Empty<string>();
+
+    public IReadOnlyList<string> SymbolKinds { get; init; } = Array.Empty<string>();
+
+    public DateTimeOffset LastIndexedUtc { get; init; } = DateTimeOffset.MinValue;
+}
+
+public sealed record IndexManifest
+{
+    public Dictionary<string, DocumentManifest> Documents { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+}
+
+public sealed record ProjectMetadata
+{
+    public string RepoName { get; init; } = string.Empty;
+
+    public string ProjectName { get; init; } = string.Empty;
+
+    public int DocumentCount { get; init; }
+
+    public int ChunkCount { get; init; }
+
+    public IReadOnlyList<string> FilePaths { get; init; } = Array.Empty<string>();
+
+    public IReadOnlyList<string> SymbolKinds { get; init; } = Array.Empty<string>();
+}
+
+public sealed record RepositoryMetadata
+{
+    public string RepoName { get; init; } = string.Empty;
+
+    public int DocumentCount { get; init; }
+
+    public int ChunkCount { get; init; }
+
+    public int ProjectCount { get; init; }
+
+    public IReadOnlyList<string> ProjectNames { get; init; } = Array.Empty<string>();
+
+    public IReadOnlyList<string> FilePaths { get; init; } = Array.Empty<string>();
+
+    public IReadOnlyList<string> SymbolKinds { get; init; } = Array.Empty<string>();
+
+    public DateTimeOffset? LastIndexedUtc { get; init; }
+}
+
 public sealed record VectorRecord
 {
     public string Id { get; init; } = string.Empty;
@@ -253,6 +311,13 @@ public interface ICodeContextApplicationService
 public interface IContentHasher
 {
     string ComputeHash(string input);
+}
+
+public interface IIndexCatalog
+{
+    Task<RepositoryMetadata?> GetRepositoryMetadataAsync(string repoName, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ProjectMetadata>> GetProjectMetadataAsync(string repoName, CancellationToken cancellationToken = default);
 }
 
 public sealed record QdrantOptions

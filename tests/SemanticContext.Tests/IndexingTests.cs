@@ -143,6 +143,44 @@ public sealed class IndexingTests
         Assert.DoesNotContain(store.Records, record => GetString(record.Payload, "symbolName") == "SourceName" && GetString(record.Payload, "symbolKind") == "Property");
     }
 
+    [Fact]
+    public async Task Manifest_backed_catalog_returns_repository_and_project_metadata()
+    {
+        var tempCache = CreateTempDirectory();
+        var store = new InMemoryVectorStore();
+        var indexer = CreateIndexer(store, tempCache);
+
+        var result = await indexer.IndexAsync(new IndexRequest
+        {
+            SolutionPath = FixturePaths.TinySolutionPath,
+            RepoName = "TinySolution",
+            CommitSha = "abc123",
+            ReindexMode = ReindexMode.Full,
+        });
+
+        Assert.Equal(IndexStatus.Completed, result.Status);
+
+        var catalog = new FileIndexCatalog(Options.Create(new IndexingOptions
+        {
+            CacheDirectory = tempCache,
+            SnippetLength = 220,
+        }));
+
+        var repository = await catalog.GetRepositoryMetadataAsync("TinySolution");
+        var projects = await catalog.GetProjectMetadataAsync("TinySolution");
+
+        Assert.NotNull(repository);
+        Assert.Equal("TinySolution", repository!.RepoName);
+        Assert.Equal(1, repository.DocumentCount);
+        Assert.Equal(1, repository.ProjectCount);
+        Assert.Contains("TinySolution", repository.ProjectNames);
+        Assert.Single(projects);
+        Assert.Equal("TinySolution", projects[0].RepoName);
+        Assert.Equal("TinySolution", projects[0].ProjectName);
+        Assert.Equal(1, projects[0].DocumentCount);
+        Assert.Contains(projects[0].FilePaths, path => path.EndsWith("SampleTypes.cs", StringComparison.OrdinalIgnoreCase));
+    }
+
     private static SolutionCodeIndexer CreateIndexer(InMemoryVectorStore store, string cacheDirectory)
     {
         return new SolutionCodeIndexer(

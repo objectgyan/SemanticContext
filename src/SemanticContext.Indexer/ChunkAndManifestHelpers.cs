@@ -30,18 +30,6 @@ internal static class ChunkTextBuilder
     }
 }
 
-internal sealed class IndexManifest
-{
-    public Dictionary<string, DocumentManifest> Documents { get; init; } = new(StringComparer.OrdinalIgnoreCase);
-}
-
-internal sealed record DocumentManifest
-{
-    public string ContentHash { get; init; } = string.Empty;
-
-    public List<string> ChunkIds { get; init; } = [];
-}
-
 internal sealed class IndexManifestStore
 {
     private readonly IndexingOptions _options;

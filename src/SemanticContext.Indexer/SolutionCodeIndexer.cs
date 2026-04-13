@@ -164,7 +164,12 @@ public sealed class SolutionCodeIndexer : ICodeIndexer
                         currentManifest.Documents[documentPath] = new DocumentManifest
                         {
                             ContentHash = documentHash,
+                            ProjectName = project.Name,
+                            FilePath = documentPath,
+                            ChunkCount = 0,
                             ChunkIds = [],
+                            SymbolKinds = [],
+                            LastIndexedUtc = DateTimeOffset.UtcNow,
                         };
 
                         continue;
@@ -190,7 +195,16 @@ public sealed class SolutionCodeIndexer : ICodeIndexer
                     currentManifest.Documents[documentPath] = new DocumentManifest
                     {
                         ContentHash = documentHash,
+                        ProjectName = project.Name,
+                        FilePath = documentPath,
+                        ChunkCount = chunks.Count,
                         ChunkIds = chunkIds.OrderBy(id => id, StringComparer.Ordinal).ToList(),
+                        SymbolKinds = chunks
+                            .Select(chunk => chunk.SymbolKind.ToString())
+                            .Distinct(StringComparer.Ordinal)
+                            .OrderBy(kind => kind, StringComparer.Ordinal)
+                            .ToArray(),
+                        LastIndexedUtc = DateTimeOffset.UtcNow,
                     };
 
                     if (documentHadUpserts)
