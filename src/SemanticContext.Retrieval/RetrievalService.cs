@@ -37,11 +37,14 @@ public sealed class VectorStoreCodeContextRetriever : ICodeContextRetriever
             };
         }
 
-        var queryVector = await _embeddingProvider.CreateEmbeddingAsync(query.Query, cancellationToken).ConfigureAwait(false);
+        var queryVector = await _embeddingProvider.CreateEmbeddingAsync(BuildEmbeddingQuery(query.Query), cancellationToken).ConfigureAwait(false);
+        var queryIntent = DetectEntryPointIntent(query.Query);
         var searchRequest = new VectorSearchRequest
         {
             QueryVector = queryVector,
-            TopK = Math.Max(query.TopK * 5, _options.RerankWindowSize),
+            TopK = queryIntent
+                ? Math.Max(Math.Max(query.TopK * 10, _options.RerankWindowSize * 4), 100)
+                : Math.Max(query.TopK * 5, _options.RerankWindowSize),
             RepoName = query.RepoName,
             Filters = query.Filters,
         };
@@ -80,6 +83,7 @@ public sealed class VectorStoreCodeContextRetriever : ICodeContextRetriever
         var controllerName = GetString(payload, "controllerName");
         var projectName = GetString(payload, "projectName");
         var normalizedQuery = Normalize(query);
+        var queryIntent = DetectEntryPointIntent(query);
 
         var queryTokens = Tokenize(query);
         var symbolTokens = Tokenize(symbolName);
@@ -94,7 +98,7 @@ public sealed class VectorStoreCodeContextRetriever : ICodeContextRetriever
         var fileNameTokens = Tokenize(Path.GetFileNameWithoutExtension(filePath));
 
         var score = candidate.Score;
-        score += ComputeKeywordBoost(normalizedQuery, queryTokens, symbolKind, symbolName, symbolTokens, signature, signatureTokens, summary, summaryTokens, filePath, fileTokens, chunkTokens, dependencyTokens, routeTemplate, routeTokens, httpVerb, controllerName, controllerTokens, projectName, projectTokens, fileNameTokens);
+        score += ComputeKeywordBoost(normalizedQuery, queryTokens, queryIntent, symbolKind, symbolName, symbolTokens, signature, signatureTokens, summary, summaryTokens, filePath, fileTokens, chunkTokens, dependencyTokens, routeTemplate, routeTokens, httpVerb, controllerName, controllerTokens, projectName, projectTokens, fileNameTokens);
 
         var snippet = GetString(payload, "snippet");
         if (string.IsNullOrWhiteSpace(snippet))
@@ -272,6 +276,7 @@ public sealed class VectorStoreCodeContextRetriever : ICodeContextRetriever
     private double ComputeKeywordBoost(
         string normalizedQuery,
         HashSet<string> queryTokens,
+        bool queryIntent,
         CodeSymbolKind symbolKind,
         string symbolName,
         HashSet<string> symbolTokens,
@@ -324,9 +329,63 @@ public sealed class VectorStoreCodeContextRetriever : ICodeContextRetriever
             boost += 0.28;
         }
 
+        if (queryIntent)
+        {
+            if (symbolKind == CodeSymbolKind.ControllerAction)
+            {
+                boost += 0.85;
+            }
+
+            if (IsControllerOrServicePath(filePath))
+            {
+                boost += 0.24;
+            }
+
+            if (!string.IsNullOrWhiteSpace(routeTemplate))
+            {
+                boost += 0.22;
+            }
+
+            if (!string.IsNullOrWhiteSpace(controllerName))
+            {
+                boost += 0.18;
+            }
+
+            if (IsRepositoryPath(filePath))
+            {
+                boost -= 0.18;
+            }
+        }
+
+        if (queryTokens.Contains("product") && !queryTokens.Contains("category"))
+        {
+            var candidateMentionsProduct = symbolTokens.Contains("product")
+                || routeTokens.Contains("product")
+                || summaryTokens.Contains("product")
+                || fileNameTokens.Contains("product");
+
+            if (!candidateMentionsProduct && symbolKind == CodeSymbolKind.ControllerAction)
+            {
+                boost -= 0.28;
+            }
+        }
+
         if (queryTokens.Contains("controller") && !string.IsNullOrWhiteSpace(routeTemplate))
         {
             boost += 0.22;
+        }
+
+        if (queryTokens.Contains("product") && (symbolTokens.Contains("product") || routeTokens.Contains("product")))
+        {
+            boost += 0.18;
+        }
+
+        if (queryTokens.Contains("product") && queryTokens.Contains("search"))
+        {
+            if (symbolTokens.Contains("searchproducts") || Normalize(routeTemplate).Contains("products/search", StringComparison.OrdinalIgnoreCase))
+            {
+                boost += 1.05;
+            }
         }
 
         if (queryTokens.Contains("action") && !string.IsNullOrWhiteSpace(httpVerb))
@@ -383,6 +442,51 @@ public sealed class VectorStoreCodeContextRetriever : ICodeContextRetriever
         return normalized.EndsWith("controller", StringComparison.OrdinalIgnoreCase)
             ? normalized[..^"controller".Length].Trim()
             : normalized;
+    }
+
+    private static bool DetectEntryPointIntent(string query)
+    {
+        var tokens = Tokenize(query);
+        return tokens.Contains("where")
+            || tokens.Contains("handled")
+            || tokens.Contains("handling")
+            || tokens.Contains("entry")
+            || tokens.Contains("endpoint")
+            || tokens.Contains("controller")
+            || tokens.Contains("route")
+            || tokens.Contains("action");
+    }
+
+    private static string BuildEmbeddingQuery(string query)
+    {
+        if (!DetectEntryPointIntent(query))
+        {
+            return query;
+        }
+
+        return string.Join(
+            '\n',
+            query,
+            "controller action route service endpoint handled api",
+            "entry point search");
+    }
+
+    private static bool IsControllerOrServicePath(string filePath)
+    {
+        return filePath.Contains(@"\Controllers\", StringComparison.OrdinalIgnoreCase)
+            || filePath.Contains(@"\ControllerNanoServices\", StringComparison.OrdinalIgnoreCase)
+            || filePath.Contains(@"\Services\", StringComparison.OrdinalIgnoreCase)
+            || filePath.Contains(@"/Controllers/", StringComparison.OrdinalIgnoreCase)
+            || filePath.Contains(@"/ControllerNanoServices/", StringComparison.OrdinalIgnoreCase)
+            || filePath.Contains(@"/Services/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsRepositoryPath(string filePath)
+    {
+        return filePath.Contains(@"\Repository\", StringComparison.OrdinalIgnoreCase)
+            || filePath.Contains(@"\SqlRepository\", StringComparison.OrdinalIgnoreCase)
+            || filePath.Contains(@"/Repository/", StringComparison.OrdinalIgnoreCase)
+            || filePath.Contains(@"/SqlRepository/", StringComparison.OrdinalIgnoreCase);
     }
 
     private sealed record CandidateScore(CodeContextResult Result, double Score);

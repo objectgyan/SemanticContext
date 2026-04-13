@@ -10,6 +10,8 @@ namespace SemanticContext.Infrastructure;
 
 public sealed class QdrantVectorStore : IVectorStore
 {
+    private const int BatchSize = 256;
+
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly QdrantOptions _options;
     private readonly ILogger<QdrantVectorStore> _logger;
@@ -34,22 +36,25 @@ public sealed class QdrantVectorStore : IVectorStore
         }
 
         var client = await GetClientAsync(cancellationToken).ConfigureAwait(false);
-        var points = records.Select(record => new
+        foreach (var batch in records.Chunk(BatchSize))
         {
-            id = ToQdrantPointId(record.Id),
-            vector = record.Vector,
-            payload = record.Payload.Concat(new[]
+            var points = batch.Select(record => new
             {
-                new KeyValuePair<string, object?>("originalId", record.Id),
-            }).ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase),
-        });
+                id = ToQdrantPointId(record.Id),
+                vector = record.Vector,
+                payload = record.Payload.Concat(new[]
+                {
+                    new KeyValuePair<string, object?>("originalId", record.Id),
+                }).ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase),
+            });
 
-        var response = await client.PutAsJsonAsync(
-            $"collections/{_options.CollectionName}/points?wait=true",
-            new { points },
-            cancellationToken).ConfigureAwait(false);
+            using var response = await client.PutAsJsonAsync(
+                $"collections/{_options.CollectionName}/points?wait=true",
+                new { points },
+                cancellationToken).ConfigureAwait(false);
 
-        response.EnsureSuccessStatusCode();
+            response.EnsureSuccessStatusCode();
+        }
     }
 
     public async Task<IReadOnlyList<VectorSearchResult>> SearchAsync(VectorSearchRequest request, CancellationToken cancellationToken = default)
@@ -121,12 +126,15 @@ public sealed class QdrantVectorStore : IVectorStore
         }
 
         var client = await GetClientAsync(cancellationToken).ConfigureAwait(false);
-        using var response = await client.PostAsJsonAsync(
-            $"collections/{_options.CollectionName}/points/delete?wait=true",
-            new { points = ids.Select(ToQdrantPointId).ToArray() },
-            cancellationToken).ConfigureAwait(false);
+        foreach (var batch in ids.Chunk(BatchSize))
+        {
+            using var response = await client.PostAsJsonAsync(
+                $"collections/{_options.CollectionName}/points/delete?wait=true",
+                new { points = batch.Select(ToQdrantPointId).ToArray() },
+                cancellationToken).ConfigureAwait(false);
 
-        response.EnsureSuccessStatusCode();
+            response.EnsureSuccessStatusCode();
+        }
     }
 
     private async Task<HttpClient> GetClientAsync(CancellationToken cancellationToken)
@@ -207,7 +215,6 @@ public sealed class QdrantVectorStore : IVectorStore
                     key = "projectName",
                     match = new { value = projectName },
                 }),
-                min_should = 1,
             });
         }
 
@@ -220,7 +227,6 @@ public sealed class QdrantVectorStore : IVectorStore
                     key = "filePath",
                     match = new { value = filePath },
                 }),
-                min_should = 1,
             });
         }
 
@@ -233,7 +239,6 @@ public sealed class QdrantVectorStore : IVectorStore
                     key = "symbolKind",
                     match = new { value = symbolKind.ToString() },
                 }),
-                min_should = 1,
             });
         }
 
@@ -246,7 +251,6 @@ public sealed class QdrantVectorStore : IVectorStore
                     key = "attributes",
                     match = new { value = attribute },
                 }),
-                min_should = 1,
             });
         }
 

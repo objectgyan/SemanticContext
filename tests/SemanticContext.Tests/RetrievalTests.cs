@@ -108,6 +108,53 @@ public sealed class RetrievalTests
     }
 
     [Fact]
+    public async Task Entry_point_queries_prefer_controller_actions_over_repository_helpers()
+    {
+        var store = new InMemoryVectorStore();
+        var embedding = new DeterministicHashEmbeddingProvider(Options.Create(new EmbeddingProviderOptions { Dimension = 256 }));
+
+        await SeedRecordAsync(
+            store,
+            embedding,
+            "TinySolution",
+            "TinySolution.Api",
+            "SearchProducts",
+            CodeSymbolKind.ControllerAction,
+            "ActionResult<List<SearchProductsResponse>> SearchProducts(SearchProductsRequest args)",
+            "ASP.NET RevitController action that handles route api/v1/revit/products/search.",
+            routeTemplate: "api/v1/revit/products/search",
+            httpVerb: "HttpPost",
+            controllerName: "RevitController",
+            isApiController: true);
+
+        await SeedRecordAsync(
+            store,
+            embedding,
+            "TinySolution",
+            "TinySolution.Repository",
+            "Product_Search",
+            CodeSymbolKind.Method,
+            "PaginationSqlResult<ProductSearchResult> Product_Search(ProductSearchArgs args)",
+            "Repository method that searches products in SQL.");
+
+        var retriever = CreateRetriever(store);
+        var response = await retriever.QueryAsync(new CodeContextQuery
+        {
+            Query = "where is product search handled",
+            RepoName = "TinySolution",
+            TopK = 5,
+            Filters = new CodeContextFilters
+            {
+                SymbolKinds = [CodeSymbolKind.ControllerAction, CodeSymbolKind.Method],
+            },
+        });
+
+        Assert.NotEmpty(response.Results);
+        Assert.Equal("SearchProducts", response.Results[0].SymbolName);
+        Assert.Equal(CodeSymbolKind.ControllerAction, response.Results[0].SymbolKind);
+    }
+
+    [Fact]
     public async Task End_to_end_index_and_query_returns_relevant_results()
     {
         var cacheDir = Path.Combine(Path.GetTempPath(), "semanticcontext-tests", Guid.NewGuid().ToString("N"));
