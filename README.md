@@ -20,14 +20,14 @@ SemanticContext is a local-first semantic context engine for C# and .NET codebas
 - `SemanticContext.Retrieval` performs vector search, filtering, keyword boosts, and reranking
 - `SemanticContext.Infrastructure` contains Qdrant, embeddings, hashing, and other adapters
 - `SemanticContext.Api` is the HTTP adapter
-- `SemanticContext.Mcp` is the future MCP adapter boundary
+- `SemanticContext.Mcp` is the MCP adapter boundary
 - `SemanticContext.Tests` covers Roslyn extraction, retrieval, reranking, adapter delegation, and a small end-to-end path
 
 ```mermaid
 flowchart LR
   subgraph Adapters["Transport Adapters"]
     HTTP["ASP.NET Core Web API\n/index, /query, /health"]
-    MCP["Future MCP Adapter\nsemantic_search, index_solution, get_symbol_context"]
+    MCP["MCP Adapter\nsemantic_search, index_solution, get_symbol_context"]
   end
 
   subgraph Application["Application Core"]
@@ -92,7 +92,7 @@ The application service is the single entry point for indexing and querying. HTT
 - [x] Add repository and project metadata resources for MCP
 - [x] Add stronger API validation and problem-details shaping
 - [x] Add richer response summaries for semantic search
-- [ ] Wire a real MCP SDK adapter
+- [x] Wire a real MCP SDK adapter
 - [x] Add richer index manifests for cross-run pruning and reconciliation
 
 ## Project Structure
@@ -182,17 +182,23 @@ curl -X POST http://localhost:5000/query \
   }'
 ```
 
-## MCP Plan
+## MCP Server
 
-`SemanticContext.Mcp` is intentionally thin and currently exposes a facade that maps MCP-shaped requests to the same application service used by HTTP.
+`SemanticContext.Mcp` is intentionally thin and exposes a facade that maps MCP-shaped requests to the same application service used by HTTP.
 
-Planned tools:
+Run it locally with:
+
+```bash
+dotnet run --project src/SemanticContext.Mcp
+```
+
+Available tools:
 
 - `semantic_search`
 - `index_solution`
 - `get_symbol_context`
 
-Planned resources:
+Available resources:
 
 - repository metadata
 - project summaries
@@ -209,7 +215,7 @@ Implemented:
 - Remote HTTP embedding provider adapter
 - HTTP API with `/index`, `/query`, `/health`, and basic OpenAPI exposure
 - API request validation with problem-details responses
-- MCP adapter skeleton
+- MCP stdio server with tool and resource wiring
 - Manifest-backed repository and project metadata resource shapes for MCP
 - Atomic manifest persistence with cross-run pruning and reconciliation
 - Deterministic UUID-safe Qdrant point IDs with original ID preservation in payloads
@@ -220,7 +226,6 @@ Implemented:
 
 Not implemented yet:
 
-- Real MCP protocol server wiring
 - Advanced ranking and BM25-style keyword search
 - Incremental file watch/index daemon
 - GitHub/PR integration
@@ -229,12 +234,12 @@ Not implemented yet:
 ## Recommended Next Improvements
 
 1. Expand controller-action metadata extraction.
-2. Add MCP SDK wiring around the existing facade.
-3. Add a file watcher for continuous indexing.
-4. Add more fixture solutions and negative tests.
-5. Add auth and tenancy controls for multi-user deployments.
-6. Add manifest diffing for repository-level change summaries.
-7. Add real MCP tool/resource registration once the SDK layer is chosen.
-8. Add integration tests against a live Qdrant container.
-9. Add continuous embedding provider contract tests against a mock remote service.
-10. Add a file watcher for continuous indexing.
+2. Add a file watcher for continuous indexing.
+3. Add more fixture solutions and negative tests.
+4. Add auth and tenancy controls for multi-user deployments.
+5. Add manifest diffing for repository-level change summaries.
+6. Add integration tests against a live Qdrant container.
+7. Add continuous embedding provider contract tests against a mock remote service.
+8. Add advanced ranking and BM25-style keyword search.
+9. Add GitHub/PR integration.
+10. Add a UI.

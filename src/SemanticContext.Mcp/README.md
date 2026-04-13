@@ -1,14 +1,15 @@
 # SemanticContext.Mcp
 
-This project is the future MCP adapter boundary for SemanticContext.
+This project contains the local MCP server for SemanticContext.
 
-Current MVP shape:
+Current shape:
 - Thin facade over `ICodeContextApplicationService`
-- Manifest-backed repository/project metadata resource shapes
-- No transport protocol implementation yet
-- Ready for tool wiring such as `semantic_search`, `index_solution`, and `get_symbol_context`
+- Stdio MCP host built on the official C# MCP SDK
+- Tool definitions for `semantic_search`, `index_solution`, and `get_symbol_context`
+- Resource definitions for repository, project, and symbol context
+- No duplicated indexing or retrieval logic
 
 Future work:
-- Add the official MCP SDK adapter
-- Map tool calls to the facade methods in this project
-- Expose repository, project, and symbol resources with stable schemas
+- Add optional HTTP transport if we want the same MCP surface over HTTP
+- Add prompts for explain-this-area workflows
+- Add richer paging and resource discovery helpers

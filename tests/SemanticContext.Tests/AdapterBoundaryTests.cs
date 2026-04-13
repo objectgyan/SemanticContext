@@ -1,6 +1,7 @@
 using SemanticContext.Api;
 using SemanticContext.Contracts;
 using SemanticContext.Mcp;
+using System.Text.Json;
 
 namespace SemanticContext.Tests;
 
@@ -151,5 +152,120 @@ public sealed class AdapterBoundaryTests
         Assert.Equal("ProjectA", projects[0].ProjectName);
         Assert.Equal(1, catalog.RepositoryMetadataCallCount);
         Assert.Equal(1, catalog.ProjectMetadataCallCount);
+    }
+
+    [Fact]
+    public async Task Mcp_tools_delegate_to_the_same_facade()
+    {
+        var catalog = new RecordingIndexCatalog();
+        var service = new RecordingApplicationService
+        {
+            QueryResultToReturn = new CodeContextResponse
+            {
+                Query = "search",
+                Results =
+                [
+                    new CodeContextResult
+                    {
+                        SymbolName = "GetOrderAsync",
+                        FilePath = "OrderService.cs",
+                    },
+                ],
+            },
+            IndexResultToReturn = new IndexResult
+            {
+                Status = IndexStatus.Completed,
+                FilesIndexed = 1,
+            },
+        };
+
+        var facade = new SemanticContextMcpFacade(service, catalog);
+
+        var search = await SemanticContextMcpTools.SemanticSearchAsync(
+            new CodeContextQuery
+            {
+                Query = "search",
+                RepoName = "repo",
+                TopK = 4,
+            },
+            facade);
+
+        var index = await SemanticContextMcpTools.IndexSolutionAsync(
+            new IndexRequest
+            {
+                SolutionPath = "/tmp/sample.sln",
+                RepoName = "repo",
+                CommitSha = "abc",
+            },
+            facade);
+
+        var symbol = await SemanticContextMcpTools.GetSymbolContextAsync("repo", "OrderService.cs", "GetOrderAsync", facade);
+
+        Assert.Equal(2, service.QueryCallCount);
+        Assert.Equal(1, service.IndexCallCount);
+        Assert.Equal("search", search.Query);
+        Assert.Equal(IndexStatus.Completed, index.Status);
+        Assert.Equal("GetOrderAsync", symbol.SymbolName);
+        Assert.Equal("OrderService.cs", symbol.FilePath);
+    }
+
+    [Fact]
+    public async Task Mcp_resources_return_stable_json_payloads()
+    {
+        var catalog = new RecordingIndexCatalog
+        {
+            RepositoryMetadataToReturn = new RepositoryMetadata
+            {
+                RepoName = "repo",
+                DocumentCount = 7,
+                ProjectNames = ["ProjectA", "ProjectB"],
+            },
+            ProjectMetadataToReturn =
+            [
+                new ProjectMetadata
+                {
+                    RepoName = "repo",
+                    ProjectName = "ProjectA",
+                    DocumentCount = 2,
+                },
+                new ProjectMetadata
+                {
+                    RepoName = "repo",
+                    ProjectName = "ProjectB",
+                    DocumentCount = 5,
+                },
+            ],
+        };
+
+        var service = new RecordingApplicationService
+        {
+            QueryResultToReturn = new CodeContextResponse
+            {
+                Query = "GetOrderAsync",
+                Results =
+                [
+                    new CodeContextResult
+                    {
+                        SymbolName = "GetOrderAsync",
+                        FilePath = "OrderService.cs",
+                        ProjectName = "ProjectA",
+                    },
+                ],
+            },
+        };
+
+        var facade = new SemanticContextMcpFacade(service, catalog);
+
+        var repositoryJson = await SemanticContextMcpResources.GetRepositoryMetadataAsync("repo", facade);
+        var projectJson = await SemanticContextMcpResources.GetProjectMetadataAsync("repo", "ProjectA", facade);
+        var symbolJson = await SemanticContextMcpResources.GetSymbolContextAsync("repo", "OrderService.cs", "GetOrderAsync", facade);
+
+        using var repository = JsonDocument.Parse(repositoryJson);
+        using var projects = JsonDocument.Parse(projectJson);
+        using var symbol = JsonDocument.Parse(symbolJson);
+
+        Assert.Equal("repo", repository.RootElement.GetProperty("repoName").GetString());
+        Assert.Equal("ProjectA", projects.RootElement[0].GetProperty("projectName").GetString());
+        Assert.Equal("GetOrderAsync", symbol.RootElement.GetProperty("result").GetProperty("symbolName").GetString());
     }
 }
