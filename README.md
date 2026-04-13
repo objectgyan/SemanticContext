@@ -87,6 +87,7 @@ The application service is the single entry point for indexing and querying. HTT
 - [x] Draft PR published to GitHub
 - [x] Add richer controller-action metadata and symbol context shapes
 - [x] Add repository and project metadata resources for MCP
+- [x] Add stronger API validation and problem-details shaping
 - [ ] Wire a real MCP SDK adapter
 - [x] Improve semantic reranking signals further
 - [ ] Add richer index manifests for cross-run pruning and reconciliation
@@ -193,6 +194,7 @@ Implemented:
 - Qdrant-backed vector storage adapter
 - Deterministic local embedding provider
 - HTTP API with `/index`, `/query`, `/health`, and basic OpenAPI exposure
+- API request validation with problem-details responses
 - MCP adapter skeleton
 - Manifest-backed repository and project metadata resource shapes for MCP
 - Tests for extraction, filtering, reranking, delegation, and a small happy path
@@ -213,8 +215,8 @@ Not implemented yet:
 3. Add MCP SDK wiring around the existing facade.
 4. Add a file watcher for continuous indexing.
 5. Add more fixture solutions and negative tests.
-6. Add stronger API validation and problem-details shaping.
-7. Add richer response summaries for semantic search.
-8. Add auth and tenancy controls for multi-user deployments.
-9. Add manifest diffing for repository-level change summaries.
-10. Add real MCP tool/resource registration once the SDK layer is chosen.
+6. Add richer response summaries for semantic search.
+7. Add auth and tenancy controls for multi-user deployments.
+8. Add manifest diffing for repository-level change summaries.
+9. Add real MCP tool/resource registration once the SDK layer is chosen.
+10. Add integration tests against a live Qdrant container.

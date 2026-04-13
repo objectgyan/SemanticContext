@@ -51,6 +51,46 @@ public sealed class AdapterBoundaryTests
     }
 
     [Fact]
+    public void Index_request_validator_rejects_invalid_paths_and_missing_fields()
+    {
+        var errors = SemanticContextRequestValidator.Validate(new IndexRequest
+        {
+            SolutionPath = "/repos/sample/sample.txt",
+            RepoName = "",
+            CommitSha = "",
+        });
+
+        Assert.Contains(nameof(IndexRequest.SolutionPath), errors.Keys);
+        Assert.Contains(nameof(IndexRequest.RepoName), errors.Keys);
+        Assert.Contains(nameof(IndexRequest.CommitSha), errors.Keys);
+    }
+
+    [Fact]
+    public void Query_request_validator_rejects_invalid_topk_and_empty_filters()
+    {
+        var errors = SemanticContextRequestValidator.Validate(new CodeContextQuery
+        {
+            Query = "",
+            RepoName = "",
+            TopK = 0,
+            Filters = new CodeContextFilters
+            {
+                ProjectNames = [""],
+                FilePaths = [""],
+                Attributes = [""],
+                SymbolKinds = [CodeSymbolKind.Method],
+            },
+        });
+
+        Assert.Contains(nameof(CodeContextQuery.Query), errors.Keys);
+        Assert.Contains(nameof(CodeContextQuery.RepoName), errors.Keys);
+        Assert.Contains(nameof(CodeContextQuery.TopK), errors.Keys);
+        Assert.Contains("filters.projectNames", errors.Keys);
+        Assert.Contains("filters.filePaths", errors.Keys);
+        Assert.Contains("filters.attributes", errors.Keys);
+    }
+
+    [Fact]
     public async Task Mcp_facade_delegates_to_application_service()
     {
         var catalog = new RecordingIndexCatalog

@@ -85,9 +85,15 @@ static class SemanticContextEndpointMapping
             .WithOpenApi();
         app.MapPost("/index", SemanticContextEndpointHandlers.IndexAsync)
             .WithName("IndexSolution")
+            .Accepts<IndexRequest>("application/json")
+            .Produces<IndexResult>(StatusCodes.Status200OK)
+            .ProducesValidationProblem()
             .WithOpenApi();
         app.MapPost("/query", SemanticContextEndpointHandlers.QueryAsync)
             .WithName("QueryCodeContext")
+            .Accepts<CodeContextQuery>("application/json")
+            .Produces<CodeContextResponse>(StatusCodes.Status200OK)
+            .ProducesValidationProblem()
             .WithOpenApi();
 
         return app;
