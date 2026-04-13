@@ -125,6 +125,11 @@ docker compose up -d
 
 Qdrant will be available at `http://localhost:6333`.
 
+Optional integration testing:
+
+- Set `SEMANTICCONTEXT_QDRANT_URL` to point at a reachable Qdrant instance.
+- Run the Qdrant integration test project filter when you want to exercise the live storage adapter.
+
 ## Configure The API
 
 The API project ships with development-friendly defaults in `src/SemanticContext.Api/appsettings.json`.

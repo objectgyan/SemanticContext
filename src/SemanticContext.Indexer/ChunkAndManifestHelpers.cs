@@ -57,8 +57,20 @@ internal sealed class IndexManifestStore
         var path = GetManifestPath(repoName);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
 
-        await using var stream = File.Create(path);
-        await JsonSerializer.SerializeAsync(stream, manifest, cancellationToken: cancellationToken).ConfigureAwait(false);
+        var tempPath = $"{path}.tmp";
+        await using (var stream = File.Create(tempPath))
+        {
+            await JsonSerializer.SerializeAsync(stream, manifest, cancellationToken: cancellationToken).ConfigureAwait(false);
+        }
+
+        if (File.Exists(path))
+        {
+            File.Replace(tempPath, path, null);
+        }
+        else
+        {
+            File.Move(tempPath, path);
+        }
     }
 
     private string GetManifestPath(string repoName)
