@@ -85,6 +85,7 @@ The application service is the single entry point for indexing and querying. HTT
 - [x] HTTP API with `/index`, `/query`, `/health`, and OpenAPI metadata
 - [x] Tests for extraction, retrieval, reranking, adapter delegation, and ChangedOnly cleanup
 - [x] HTTP integration tests for validation and query delegation
+- [x] Qdrant live integration test and adapter ID mapping
 - [x] Draft PR published to GitHub
 - [x] Add richer controller-action metadata and symbol context shapes
 - [x] Add repository and project metadata resources for MCP
@@ -204,8 +205,10 @@ Implemented:
 - MCP adapter skeleton
 - Manifest-backed repository and project metadata resource shapes for MCP
 - Atomic manifest persistence with cross-run pruning and reconciliation
+- Deterministic UUID-safe Qdrant point IDs with original ID preservation in payloads
 - Tests for extraction, filtering, reranking, delegation, and a small happy path
 - HTTP integration tests for validation and query delegation
+- Qdrant live integration test and adapter ID mapping
 
 Not implemented yet:
 
