@@ -2,6 +2,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SemanticContext.Contracts;
 using System.Net.Http.Json;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 
 namespace SemanticContext.Infrastructure;
@@ -34,9 +36,12 @@ public sealed class QdrantVectorStore : IVectorStore
         var client = await GetClientAsync(cancellationToken).ConfigureAwait(false);
         var points = records.Select(record => new
         {
-            id = record.Id,
+            id = ToQdrantPointId(record.Id),
             vector = record.Vector,
-            payload = record.Payload,
+            payload = record.Payload.Concat(new[]
+            {
+                new KeyValuePair<string, object?>("originalId", record.Id),
+            }).ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase),
         });
 
         var response = await client.PutAsJsonAsync(
@@ -82,7 +87,7 @@ public sealed class QdrantVectorStore : IVectorStore
             var payload = ReadPayload(item);
             results.Add(new VectorSearchResult
             {
-                Id = item.TryGetProperty("id", out var id) ? id.ToString() : string.Empty,
+                Id = payload.TryGetValue("originalId", out var originalId) ? originalId?.ToString() ?? string.Empty : (item.TryGetProperty("id", out var id) ? id.ToString() : string.Empty),
                 Score = item.TryGetProperty("score", out var score) && score.TryGetDouble(out var parsedScore) ? parsedScore : 0,
                 Payload = payload,
             });
@@ -103,6 +108,22 @@ public sealed class QdrantVectorStore : IVectorStore
         using var response = await client.PostAsJsonAsync(
             $"collections/{_options.CollectionName}/points/delete?wait=true",
             new { filter },
+            cancellationToken).ConfigureAwait(false);
+
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task DeleteByIdsAsync(IReadOnlyCollection<string> ids, CancellationToken cancellationToken = default)
+    {
+        if (ids.Count == 0)
+        {
+            return;
+        }
+
+        var client = await GetClientAsync(cancellationToken).ConfigureAwait(false);
+        using var response = await client.PostAsJsonAsync(
+            $"collections/{_options.CollectionName}/points/delete?wait=true",
+            new { points = ids.Select(ToQdrantPointId).ToArray() },
             cancellationToken).ConfigureAwait(false);
 
         response.EnsureSuccessStatusCode();
@@ -263,5 +284,18 @@ public sealed class QdrantVectorStore : IVectorStore
             _ => element.ToString(),
         };
     }
-}
 
+    private static string ToQdrantPointId(string id)
+    {
+        if (Guid.TryParse(id, out var guid))
+        {
+            return guid.ToString();
+        }
+
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(id));
+        var bytes = hash.Take(16).ToArray();
+        bytes[6] = (byte)((bytes[6] & 0x0F) | 0x40);
+        bytes[8] = (byte)((bytes[8] & 0x3F) | 0x80);
+        return new Guid(bytes).ToString();
+    }
+}

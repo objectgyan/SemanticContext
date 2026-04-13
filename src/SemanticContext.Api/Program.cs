@@ -13,6 +13,7 @@ using SemanticContext.Retrieval;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddProblemDetails();
+builder.Services.AddOpenApi();
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
@@ -27,6 +28,8 @@ builder.Services.AddOptions<QdrantOptions>()
 builder.Services.AddOptions<EmbeddingProviderOptions>()
     .BindConfiguration("EmbeddingProvider")
     .ValidateDataAnnotations()
+    .Validate(options => options.Kind != EmbeddingProviderKind.RemoteHttp || !string.IsNullOrWhiteSpace(options.EndpointUrl), "EmbeddingProvider:EndpointUrl is required when Kind is RemoteHttp.")
+    .Validate(options => options.Kind != EmbeddingProviderKind.RemoteHttp || Uri.IsWellFormedUriString(options.EndpointUrl, UriKind.Absolute), "EmbeddingProvider:EndpointUrl must be an absolute URI when Kind is RemoteHttp.")
     .ValidateOnStart();
 
 builder.Services.AddOptions<IndexingOptions>()
@@ -64,6 +67,11 @@ app.UseExceptionHandler(errorApp =>
     });
 });
 
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+}
+
 app.MapSemanticContextEndpoints();
 
 app.Run();
@@ -74,9 +82,21 @@ static class SemanticContextEndpointMapping
 {
     public static IEndpointRouteBuilder MapSemanticContextEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/health", SemanticContextEndpointHandlers.Health);
-        app.MapPost("/index", SemanticContextEndpointHandlers.IndexAsync);
-        app.MapPost("/query", SemanticContextEndpointHandlers.QueryAsync);
+        app.MapGet("/health", SemanticContextEndpointHandlers.Health)
+            .WithName("Health")
+            .WithOpenApi();
+        app.MapPost("/index", SemanticContextEndpointHandlers.IndexAsync)
+            .WithName("IndexSolution")
+            .Accepts<IndexRequest>("application/json")
+            .Produces<IndexResult>(StatusCodes.Status200OK)
+            .ProducesValidationProblem()
+            .WithOpenApi();
+        app.MapPost("/query", SemanticContextEndpointHandlers.QueryAsync)
+            .WithName("QueryCodeContext")
+            .Accepts<CodeContextQuery>("application/json")
+            .Produces<CodeContextResponse>(StatusCodes.Status200OK)
+            .ProducesValidationProblem()
+            .WithOpenApi();
 
         return app;
     }

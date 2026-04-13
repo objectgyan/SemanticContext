@@ -53,6 +53,16 @@ internal sealed class InMemoryVectorStore : IVectorStore
         return Task.CompletedTask;
     }
 
+    public Task DeleteByIdsAsync(IReadOnlyCollection<string> ids, CancellationToken cancellationToken = default)
+    {
+        foreach (var id in ids)
+        {
+            _records.Remove(id);
+        }
+
+        return Task.CompletedTask;
+    }
+
     private static bool MatchesFilters(IReadOnlyDictionary<string, object?> payload, string? repoName, CodeContextFilters? filters)
     {
         if (!string.IsNullOrWhiteSpace(repoName) &&
@@ -189,6 +199,33 @@ internal sealed class RecordingApplicationService : ICodeContextApplicationServi
         QueryCallCount++;
         LastQuery = query;
         return Task.FromResult(QueryResultToReturn);
+    }
+}
+
+internal sealed class RecordingIndexCatalog : IIndexCatalog
+{
+    public RepositoryMetadata? RepositoryMetadataToReturn { get; set; }
+
+    public IReadOnlyList<ProjectMetadata> ProjectMetadataToReturn { get; set; } = [];
+
+    public int RepositoryMetadataCallCount { get; private set; }
+
+    public int ProjectMetadataCallCount { get; private set; }
+
+    public string? LastRepoName { get; private set; }
+
+    public Task<RepositoryMetadata?> GetRepositoryMetadataAsync(string repoName, CancellationToken cancellationToken = default)
+    {
+        RepositoryMetadataCallCount++;
+        LastRepoName = repoName;
+        return Task.FromResult(RepositoryMetadataToReturn);
+    }
+
+    public Task<IReadOnlyList<ProjectMetadata>> GetProjectMetadataAsync(string repoName, CancellationToken cancellationToken = default)
+    {
+        ProjectMetadataCallCount++;
+        LastRepoName = repoName;
+        return Task.FromResult(ProjectMetadataToReturn);
     }
 }
 

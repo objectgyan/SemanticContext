@@ -40,6 +40,12 @@ public enum SymbolVisibility
     PrivateProtected = 6,
 }
 
+public enum EmbeddingProviderKind
+{
+    DeterministicHash = 0,
+    RemoteHttp = 1,
+}
+
 public sealed record IndexRequest
 {
     public string SolutionPath { get; init; } = string.Empty;
@@ -94,6 +100,8 @@ public sealed record CodeContextResult
 {
     public double Score { get; init; }
 
+    public string ProjectName { get; init; } = string.Empty;
+
     public string FilePath { get; init; } = string.Empty;
 
     public string SymbolName { get; init; } = string.Empty;
@@ -115,6 +123,10 @@ public sealed record CodeContextResult
     public string? RouteTemplate { get; init; }
 
     public string? HttpVerb { get; init; }
+
+    public string? ControllerName { get; init; }
+
+    public bool IsApiController { get; init; }
 }
 
 public sealed record CodeContextResponse
@@ -172,7 +184,67 @@ public sealed record CodeChunk
 
     public string? HttpVerb { get; init; }
 
+    public string? ControllerName { get; init; }
+
+    public bool IsApiController { get; init; }
+
     public string? XmlDocumentation { get; init; }
+}
+
+public sealed record DocumentManifest
+{
+    public string ContentHash { get; init; } = string.Empty;
+
+    public string ProjectName { get; init; } = string.Empty;
+
+    public string FilePath { get; init; } = string.Empty;
+
+    public int ChunkCount { get; init; }
+
+    public IReadOnlyList<string> ChunkIds { get; init; } = Array.Empty<string>();
+
+    public IReadOnlyList<string> SymbolKinds { get; init; } = Array.Empty<string>();
+
+    public DateTimeOffset LastIndexedUtc { get; init; } = DateTimeOffset.MinValue;
+}
+
+public sealed record IndexManifest
+{
+    public Dictionary<string, DocumentManifest> Documents { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+}
+
+public sealed record ProjectMetadata
+{
+    public string RepoName { get; init; } = string.Empty;
+
+    public string ProjectName { get; init; } = string.Empty;
+
+    public int DocumentCount { get; init; }
+
+    public int ChunkCount { get; init; }
+
+    public IReadOnlyList<string> FilePaths { get; init; } = Array.Empty<string>();
+
+    public IReadOnlyList<string> SymbolKinds { get; init; } = Array.Empty<string>();
+}
+
+public sealed record RepositoryMetadata
+{
+    public string RepoName { get; init; } = string.Empty;
+
+    public int DocumentCount { get; init; }
+
+    public int ChunkCount { get; init; }
+
+    public int ProjectCount { get; init; }
+
+    public IReadOnlyList<string> ProjectNames { get; init; } = Array.Empty<string>();
+
+    public IReadOnlyList<string> FilePaths { get; init; } = Array.Empty<string>();
+
+    public IReadOnlyList<string> SymbolKinds { get; init; } = Array.Empty<string>();
+
+    public DateTimeOffset? LastIndexedUtc { get; init; }
 }
 
 public sealed record VectorRecord
@@ -226,6 +298,8 @@ public interface IVectorStore
     Task<IReadOnlyList<VectorSearchResult>> SearchAsync(VectorSearchRequest request, CancellationToken cancellationToken = default);
 
     Task DeleteByRepoAsync(string repoName, CancellationToken cancellationToken = default);
+
+    Task DeleteByIdsAsync(IReadOnlyCollection<string> ids, CancellationToken cancellationToken = default);
 }
 
 public interface ICodeSummaryGenerator
@@ -245,6 +319,13 @@ public interface IContentHasher
     string ComputeHash(string input);
 }
 
+public interface IIndexCatalog
+{
+    Task<RepositoryMetadata?> GetRepositoryMetadataAsync(string repoName, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ProjectMetadata>> GetProjectMetadataAsync(string repoName, CancellationToken cancellationToken = default);
+}
+
 public sealed record QdrantOptions
 {
     [Required]
@@ -262,8 +343,20 @@ public sealed record QdrantOptions
 
 public sealed record EmbeddingProviderOptions
 {
+    public EmbeddingProviderKind Kind { get; init; } = EmbeddingProviderKind.DeterministicHash;
+
     [Range(1, 4096)]
     public int Dimension { get; init; } = 256;
+
+    [Url]
+    public string? EndpointUrl { get; init; }
+
+    public string? ApiKey { get; init; }
+
+    public string? Model { get; init; }
+
+    [Range(1, 300)]
+    public int TimeoutSeconds { get; init; } = 60;
 }
 
 public sealed record IndexingOptions

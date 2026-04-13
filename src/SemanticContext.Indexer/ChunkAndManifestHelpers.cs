@@ -18,6 +18,8 @@ internal static class ChunkTextBuilder
         builder.AppendLine($"Signature: {chunk.Signature}");
         builder.AppendLine($"Attributes: {string.Join(", ", chunk.Attributes)}");
         builder.AppendLine($"Dependencies: {string.Join(", ", chunk.Dependencies)}");
+        builder.AppendLine($"ControllerName: {chunk.ControllerName}");
+        builder.AppendLine($"IsApiController: {chunk.IsApiController}");
         builder.AppendLine();
         builder.AppendLine("Summary:");
         builder.AppendLine(chunk.Summary);
@@ -26,11 +28,6 @@ internal static class ChunkTextBuilder
         builder.AppendLine(chunk.SourceSnippet ?? string.Empty);
         return builder.ToString().TrimEnd();
     }
-}
-
-internal sealed class IndexManifest
-{
-    public Dictionary<string, string> ContentHashes { get; init; } = new(StringComparer.Ordinal);
 }
 
 internal sealed class IndexManifestStore
@@ -60,8 +57,20 @@ internal sealed class IndexManifestStore
         var path = GetManifestPath(repoName);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
 
-        await using var stream = File.Create(path);
-        await JsonSerializer.SerializeAsync(stream, manifest, cancellationToken: cancellationToken).ConfigureAwait(false);
+        var tempPath = $"{path}.tmp";
+        await using (var stream = File.Create(tempPath))
+        {
+            await JsonSerializer.SerializeAsync(stream, manifest, cancellationToken: cancellationToken).ConfigureAwait(false);
+        }
+
+        if (File.Exists(path))
+        {
+            File.Replace(tempPath, path, null);
+        }
+        else
+        {
+            File.Move(tempPath, path);
+        }
     }
 
     private string GetManifestPath(string repoName)
@@ -70,4 +79,3 @@ internal sealed class IndexManifestStore
         return Path.Combine(_options.CacheDirectory, safeRepo, "manifest.json");
     }
 }
-

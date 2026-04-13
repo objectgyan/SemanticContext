@@ -11,6 +11,8 @@ public sealed record SymbolContextResponse
 
     public string SymbolName { get; init; } = string.Empty;
 
+    public string ProjectName { get; init; } = string.Empty;
+
     public CodeContextResult? Result { get; init; }
 }
 
@@ -21,15 +23,21 @@ public interface ISemanticContextMcpFacade
     Task<IndexResult> IndexSolutionAsync(IndexRequest request, CancellationToken cancellationToken = default);
 
     Task<SymbolContextResponse> GetSymbolContextAsync(string repoName, string filePath, string symbolName, CancellationToken cancellationToken = default);
+
+    Task<RepositoryMetadata?> GetRepositoryMetadataAsync(string repoName, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ProjectMetadata>> GetProjectMetadataAsync(string repoName, CancellationToken cancellationToken = default);
 }
 
 public sealed class SemanticContextMcpFacade : ISemanticContextMcpFacade
 {
     private readonly ICodeContextApplicationService _applicationService;
+    private readonly IIndexCatalog _indexCatalog;
 
-    public SemanticContextMcpFacade(ICodeContextApplicationService applicationService)
+    public SemanticContextMcpFacade(ICodeContextApplicationService applicationService, IIndexCatalog indexCatalog)
     {
         _applicationService = applicationService;
+        _indexCatalog = indexCatalog;
     }
 
     public Task<CodeContextResponse> SemanticSearchAsync(CodeContextQuery query, CancellationToken cancellationToken = default)
@@ -64,8 +72,19 @@ public sealed class SemanticContextMcpFacade : ISemanticContextMcpFacade
             RepoName = repoName,
             FilePath = filePath,
             SymbolName = symbolName,
+            ProjectName = exact?.ProjectName ?? response.Results.FirstOrDefault()?.ProjectName ?? string.Empty,
             Result = exact ?? response.Results.FirstOrDefault(),
         };
+    }
+
+    public Task<RepositoryMetadata?> GetRepositoryMetadataAsync(string repoName, CancellationToken cancellationToken = default)
+    {
+        return _indexCatalog.GetRepositoryMetadataAsync(repoName, cancellationToken);
+    }
+
+    public Task<IReadOnlyList<ProjectMetadata>> GetProjectMetadataAsync(string repoName, CancellationToken cancellationToken = default)
+    {
+        return _indexCatalog.GetProjectMetadataAsync(repoName, cancellationToken);
     }
 }
 
@@ -77,4 +96,3 @@ public static class McpRegistration
         return services;
     }
 }
-

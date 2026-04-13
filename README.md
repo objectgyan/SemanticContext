@@ -77,6 +77,23 @@ flowchart LR
 
 The application service is the single entry point for indexing and querying. HTTP and MCP are both thin adapters over that same service, so the core logic does not know or care how requests arrive. That makes it easier to reuse the same engine for local apps, an MCP server, CLI tools, or future automation.
 
+## Progress
+
+- [x] Solution scaffolded with separate contracts, application, indexer, retrieval, infrastructure, API, MCP, and test projects
+- [x] Roslyn-based semantic extraction and deterministic chunk generation
+- [x] Qdrant-backed vector storage adapter
+- [x] HTTP API with `/index`, `/query`, `/health`, and OpenAPI metadata
+- [x] Tests for extraction, retrieval, reranking, adapter delegation, and ChangedOnly cleanup
+- [x] HTTP integration tests for validation and query delegation
+- [x] Qdrant live integration test and adapter ID mapping
+- [x] Draft PR published to GitHub
+- [x] Add a real embedding provider adapter for local or remote models
+- [x] Add richer controller-action metadata and symbol context shapes
+- [x] Add repository and project metadata resources for MCP
+- [x] Add stronger API validation and problem-details shaping
+- [ ] Wire a real MCP SDK adapter
+- [x] Add richer index manifests for cross-run pruning and reconciliation
+
 ## Project Structure
 
 ```text
@@ -109,6 +126,11 @@ docker compose up -d
 
 Qdrant will be available at `http://localhost:6333`.
 
+Optional integration testing:
+
+- Set `SEMANTICCONTEXT_QDRANT_URL` to point at a reachable Qdrant instance.
+- Run the Qdrant integration test project filter when you want to exercise the live storage adapter.
+
 ## Configure The API
 
 The API project ships with development-friendly defaults in `src/SemanticContext.Api/appsettings.json`.
@@ -118,6 +140,11 @@ Important settings:
 - `Qdrant:Url`
 - `Qdrant:CollectionName`
 - `Qdrant:VectorSize`
+- `EmbeddingProvider:Kind`
+- `EmbeddingProvider:EndpointUrl`
+- `EmbeddingProvider:Model`
+- `EmbeddingProvider:ApiKey`
+- `EmbeddingProvider:TimeoutSeconds`
 - `EmbeddingProvider:Dimension`
 - `Indexing:SnippetLength`
 - `Indexing:CacheDirectory`
@@ -178,14 +205,20 @@ Implemented:
 - Deterministic chunk formatting and summary generation
 - Qdrant-backed vector storage adapter
 - Deterministic local embedding provider
-- HTTP API with `/index`, `/query`, and `/health`
+- Remote HTTP embedding provider adapter
+- HTTP API with `/index`, `/query`, `/health`, and basic OpenAPI exposure
+- API request validation with problem-details responses
 - MCP adapter skeleton
+- Manifest-backed repository and project metadata resource shapes for MCP
+- Atomic manifest persistence with cross-run pruning and reconciliation
+- Deterministic UUID-safe Qdrant point IDs with original ID preservation in payloads
 - Tests for extraction, filtering, reranking, delegation, and a small happy path
+- HTTP integration tests for validation and query delegation
+- Qdrant live integration test and adapter ID mapping
 
 Not implemented yet:
 
 - Real MCP protocol server wiring
-- Pluggable external embedding providers
 - Advanced ranking and BM25-style keyword search
 - Incremental file watch/index daemon
 - GitHub/PR integration
@@ -193,13 +226,13 @@ Not implemented yet:
 
 ## Recommended Next Improvements
 
-1. Add a real embedding provider adapter for local or remote models.
-2. Persist richer index state for more accurate `ChangedOnly` behavior.
-3. Add delete/update-by-symbol support to the vector store abstraction.
-4. Expand controller-action metadata extraction.
-5. Add MCP SDK wiring around the existing facade.
-6. Add repository/project metadata resources.
-7. Improve semantic reranking with more structured signals.
-8. Add a file watcher for continuous indexing.
-9. Add more fixture solutions and negative tests.
-10. Add OpenAPI metadata for the HTTP endpoints.
+1. Expand controller-action metadata extraction.
+2. Add MCP SDK wiring around the existing facade.
+3. Add a file watcher for continuous indexing.
+4. Add more fixture solutions and negative tests.
+5. Add richer response summaries for semantic search.
+6. Add auth and tenancy controls for multi-user deployments.
+7. Add manifest diffing for repository-level change summaries.
+8. Add real MCP tool/resource registration once the SDK layer is chosen.
+9. Add integration tests against a live Qdrant container.
+10. Add continuous embedding provider contract tests against a mock remote service.

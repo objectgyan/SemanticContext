@@ -56,6 +56,9 @@ public sealed class IndexingTests
 
         Assert.Equal(33, GetInt(chunks["GetOrderAsync|ControllerAction|OrdersController"].Payload, "startLine"));
         Assert.Equal(38, GetInt(chunks["GetOrderAsync|ControllerAction|OrdersController"].Payload, "endLine"));
+        Assert.Equal("OrdersController", GetString(chunks["GetOrderAsync|ControllerAction|OrdersController"].Payload, "controllerName"));
+        Assert.Equal("api/orders/{id}", GetString(chunks["GetOrderAsync|ControllerAction|OrdersController"].Payload, "routeTemplate"));
+        Assert.True(GetBool(chunks["GetOrderAsync|ControllerAction|OrdersController"].Payload, "isApiController"));
     }
 
     [Fact]
@@ -101,6 +104,131 @@ public sealed class IndexingTests
         Assert.Equal(first.Status, second.Status);
     }
 
+    [Fact]
+    public async Task Changed_only_removes_stale_symbols_when_a_file_drops_a_member()
+    {
+        var tempCache = CreateTempDirectory();
+        var tempSolutionRoot = CreateTempDirectory();
+        CopyDirectory(FixturePaths.TinySolutionRoot, tempSolutionRoot);
+
+        var solutionPath = Path.Combine(tempSolutionRoot, "TinySolution.sln");
+        var sampleTypesPath = Path.Combine(tempSolutionRoot, "src", "TinySolution", "SampleTypes.cs");
+        var store = new InMemoryVectorStore();
+        var indexer = CreateIndexer(store, tempCache);
+
+        var fullResult = await indexer.IndexAsync(new IndexRequest
+        {
+            SolutionPath = solutionPath,
+            RepoName = "TinySolution",
+            CommitSha = "abc123",
+            ReindexMode = ReindexMode.Full,
+        });
+
+        Assert.Equal(IndexStatus.Completed, fullResult.Status);
+        Assert.Contains(store.Records, record => GetString(record.Payload, "symbolName") == "SourceName" && GetString(record.Payload, "symbolKind") == "Property");
+
+        var rewrittenLines = await File.ReadAllLinesAsync(sampleTypesPath);
+        rewrittenLines = rewrittenLines.Where(line => !line.Contains("SourceName", StringComparison.Ordinal)).ToArray();
+        await File.WriteAllLinesAsync(sampleTypesPath, rewrittenLines);
+
+        var changedOnlyResult = await indexer.IndexAsync(new IndexRequest
+        {
+            SolutionPath = solutionPath,
+            RepoName = "TinySolution",
+            CommitSha = "def456",
+            ReindexMode = ReindexMode.ChangedOnly,
+        });
+
+        Assert.Equal(IndexStatus.Completed, changedOnlyResult.Status);
+        Assert.DoesNotContain(store.Records, record => GetString(record.Payload, "symbolName") == "SourceName" && GetString(record.Payload, "symbolKind") == "Property");
+    }
+
+    [Fact]
+    public async Task Manifest_backed_catalog_returns_repository_and_project_metadata()
+    {
+        var tempCache = CreateTempDirectory();
+        var store = new InMemoryVectorStore();
+        var indexer = CreateIndexer(store, tempCache);
+
+        var result = await indexer.IndexAsync(new IndexRequest
+        {
+            SolutionPath = FixturePaths.TinySolutionPath,
+            RepoName = "TinySolution",
+            CommitSha = "abc123",
+            ReindexMode = ReindexMode.Full,
+        });
+
+        Assert.Equal(IndexStatus.Completed, result.Status);
+
+        var catalog = new FileIndexCatalog(Options.Create(new IndexingOptions
+        {
+            CacheDirectory = tempCache,
+            SnippetLength = 220,
+        }));
+
+        var repository = await catalog.GetRepositoryMetadataAsync("TinySolution");
+        var projects = await catalog.GetProjectMetadataAsync("TinySolution");
+
+        Assert.NotNull(repository);
+        Assert.Equal("TinySolution", repository!.RepoName);
+        Assert.Equal(1, repository.DocumentCount);
+        Assert.Equal(1, repository.ProjectCount);
+        Assert.Contains("TinySolution", repository.ProjectNames);
+        Assert.Single(projects);
+        Assert.Equal("TinySolution", projects[0].RepoName);
+        Assert.Equal("TinySolution", projects[0].ProjectName);
+        Assert.Equal(1, projects[0].DocumentCount);
+        Assert.Contains(projects[0].FilePaths, path => path.EndsWith("SampleTypes.cs", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Changed_only_prunes_manifest_entries_when_a_file_is_removed()
+    {
+        var tempCache = CreateTempDirectory();
+        var tempSolutionRoot = CreateTempDirectory();
+        CopyDirectory(FixturePaths.TinySolutionRoot, tempSolutionRoot);
+
+        var solutionPath = Path.Combine(tempSolutionRoot, "TinySolution.sln");
+        var sampleTypesPath = Path.Combine(tempSolutionRoot, "src", "TinySolution", "SampleTypes.cs");
+        var store = new InMemoryVectorStore();
+        var indexer = CreateIndexer(store, tempCache);
+
+        var fullResult = await indexer.IndexAsync(new IndexRequest
+        {
+            SolutionPath = solutionPath,
+            RepoName = "TinySolution",
+            CommitSha = "abc123",
+            ReindexMode = ReindexMode.Full,
+        });
+
+        Assert.Equal(IndexStatus.Completed, fullResult.Status);
+
+        File.Delete(sampleTypesPath);
+
+        var changedOnlyResult = await indexer.IndexAsync(new IndexRequest
+        {
+            SolutionPath = solutionPath,
+            RepoName = "TinySolution",
+            CommitSha = "def456",
+            ReindexMode = ReindexMode.ChangedOnly,
+        });
+
+        Assert.Equal(IndexStatus.Completed, changedOnlyResult.Status);
+
+        var catalog = new FileIndexCatalog(Options.Create(new IndexingOptions
+        {
+            CacheDirectory = tempCache,
+            SnippetLength = 220,
+        }));
+
+        var repository = await catalog.GetRepositoryMetadataAsync("TinySolution");
+        var projects = await catalog.GetProjectMetadataAsync("TinySolution");
+
+        Assert.Null(repository);
+        Assert.Empty(projects);
+        Assert.Empty(store.Records);
+    }
+
     private static SolutionCodeIndexer CreateIndexer(InMemoryVectorStore store, string cacheDirectory)
     {
         return new SolutionCodeIndexer(
@@ -123,6 +251,21 @@ public sealed class IndexingTests
         return path;
     }
 
+    private static void CopyDirectory(string sourceDirectory, string destinationDirectory)
+    {
+        foreach (var directory in Directory.GetDirectories(sourceDirectory, "*", SearchOption.AllDirectories))
+        {
+            Directory.CreateDirectory(directory.Replace(sourceDirectory, destinationDirectory, StringComparison.OrdinalIgnoreCase));
+        }
+
+        foreach (var file in Directory.GetFiles(sourceDirectory, "*", SearchOption.AllDirectories))
+        {
+            var destinationFile = file.Replace(sourceDirectory, destinationDirectory, StringComparison.OrdinalIgnoreCase);
+            Directory.CreateDirectory(Path.GetDirectoryName(destinationFile)!);
+            File.Copy(file, destinationFile, overwrite: true);
+        }
+    }
+
     private static string GetString(IReadOnlyDictionary<string, object?> payload, string key)
     {
         return payload.TryGetValue(key, out var value) ? value?.ToString() ?? string.Empty : string.Empty;
@@ -133,5 +276,12 @@ public sealed class IndexingTests
         return payload.TryGetValue(key, out var value) && int.TryParse(value?.ToString(), out var parsed)
             ? parsed
             : 0;
+    }
+
+    private static bool GetBool(IReadOnlyDictionary<string, object?> payload, string key)
+    {
+        return payload.TryGetValue(key, out var value) && bool.TryParse(value?.ToString(), out var parsed)
+            ? parsed
+            : false;
     }
 }
