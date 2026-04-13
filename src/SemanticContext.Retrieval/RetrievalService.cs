@@ -140,6 +140,8 @@ public sealed class VectorStoreCodeContextRetriever : ICodeContextRetriever
             RelatedSymbols = relatedSymbols,
             RouteTemplate = GetString(payload, "routeTemplate"),
             HttpVerb = GetString(payload, "httpVerb"),
+            ControllerName = GetString(payload, "controllerName"),
+            IsApiController = GetBool(payload, "isApiController"),
         };
 
         return new CandidateScore(result, score);
@@ -225,6 +227,13 @@ public sealed class VectorStoreCodeContextRetriever : ICodeContextRetriever
         return payload.TryGetValue(key, out var value) && int.TryParse(value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
             ? parsed
             : 0;
+    }
+
+    private static bool GetBool(IReadOnlyDictionary<string, object?> payload, string key)
+    {
+        return payload.TryGetValue(key, out var value) && bool.TryParse(value?.ToString(), out var parsed)
+            ? parsed
+            : false;
     }
 
     private static IReadOnlyList<string> GetStringList(IReadOnlyDictionary<string, object?> payload, string key)

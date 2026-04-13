@@ -41,8 +41,9 @@ public sealed class DeterministicCodeSummaryGenerator : ICodeSummaryGenerator
             _ => "handles",
         };
 
+        var controller = string.IsNullOrWhiteSpace(chunk.ControllerName) ? "controller" : chunk.ControllerName;
         var route = string.IsNullOrWhiteSpace(chunk.RouteTemplate) ? "a controller route" : $"route {chunk.RouteTemplate}";
-        return $"ASP.NET controller action that {verb} {route}.";
+        return $"ASP.NET {controller} action that {verb} {route}.";
     }
 
     private static string DescribeProperty(CodeChunk chunk)
@@ -132,4 +133,3 @@ public sealed class DeterministicCodeSummaryGenerator : ICodeSummaryGenerator
         return tokens.Where(token => !string.IsNullOrWhiteSpace(token)).ToList();
     }
 }
-

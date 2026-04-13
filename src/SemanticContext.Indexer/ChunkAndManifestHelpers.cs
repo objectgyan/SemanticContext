@@ -18,6 +18,8 @@ internal static class ChunkTextBuilder
         builder.AppendLine($"Signature: {chunk.Signature}");
         builder.AppendLine($"Attributes: {string.Join(", ", chunk.Attributes)}");
         builder.AppendLine($"Dependencies: {string.Join(", ", chunk.Dependencies)}");
+        builder.AppendLine($"ControllerName: {chunk.ControllerName}");
+        builder.AppendLine($"IsApiController: {chunk.IsApiController}");
         builder.AppendLine();
         builder.AppendLine("Summary:");
         builder.AppendLine(chunk.Summary);

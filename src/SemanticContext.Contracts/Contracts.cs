@@ -115,6 +115,10 @@ public sealed record CodeContextResult
     public string? RouteTemplate { get; init; }
 
     public string? HttpVerb { get; init; }
+
+    public string? ControllerName { get; init; }
+
+    public bool IsApiController { get; init; }
 }
 
 public sealed record CodeContextResponse
@@ -171,6 +175,10 @@ public sealed record CodeChunk
     public string? RouteTemplate { get; init; }
 
     public string? HttpVerb { get; init; }
+
+    public string? ControllerName { get; init; }
+
+    public bool IsApiController { get; init; }
 
     public string? XmlDocumentation { get; init; }
 }

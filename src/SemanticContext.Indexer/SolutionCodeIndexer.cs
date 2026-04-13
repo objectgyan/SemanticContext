@@ -377,6 +377,8 @@ public sealed class SolutionCodeIndexer : ICodeIndexer
             SourceSnippet = snippet,
             RouteTemplate = controllerActionInfo.RouteTemplate,
             HttpVerb = controllerActionInfo.HttpVerb,
+            ControllerName = controllerActionInfo.ControllerName,
+            IsApiController = controllerActionInfo.IsApiController,
             XmlDocumentation = symbol.GetDocumentationCommentXml(),
         };
 
@@ -454,6 +456,10 @@ public sealed class SolutionCodeIndexer : ICodeIndexer
         var isController = containingType is not null &&
                            (containingType.Name.EndsWith("Controller", StringComparison.Ordinal) ||
                             containingType.BaseTypesAndSelf().Any(type => type.Name == "ControllerBase"));
+        var controllerName = containingType?.Name ?? string.Empty;
+        var isApiController = containingType is not null &&
+                               (containingType.GetAttributes().Any(attribute => string.Equals(attribute.AttributeClass?.Name, "ApiControllerAttribute", StringComparison.OrdinalIgnoreCase)) ||
+                                containingType.BaseTypesAndSelf().Any(type => type.Name == "ControllerBase"));
 
         var hasRouteAttributeSyntax = node is MethodDeclarationSyntax methodSyntax &&
             methodSyntax.AttributeLists
@@ -474,6 +480,10 @@ public sealed class SolutionCodeIndexer : ICodeIndexer
             })
             .ToArray();
 
+        var controllerRouteAttributes = containingType?.GetAttributes()
+            .Where(attribute => string.Equals(attribute.AttributeClass?.Name, "RouteAttribute", StringComparison.OrdinalIgnoreCase))
+            .ToArray() ?? Array.Empty<AttributeData>();
+
         if (!isController || (!hasRouteAttributeSyntax && routeAttributes.Length == 0))
         {
             return ControllerActionInfo.None;
@@ -484,8 +494,42 @@ public sealed class SolutionCodeIndexer : ICodeIndexer
             .FirstOrDefault(name => name is not null && name.StartsWith("Http", StringComparison.OrdinalIgnoreCase));
         httpVerb = httpVerb?.Replace("Attribute", string.Empty, StringComparison.OrdinalIgnoreCase);
 
-        var routeTemplate = routeAttributes.Select(GetAttributeRoute).FirstOrDefault(route => !string.IsNullOrWhiteSpace(route));
-        return new ControllerActionInfo(true, routeTemplate, httpVerb);
+        var controllerRouteTemplate = controllerRouteAttributes.Select(GetAttributeRoute).FirstOrDefault(route => !string.IsNullOrWhiteSpace(route));
+        var actionRouteTemplate = routeAttributes.Select(GetAttributeRoute).FirstOrDefault(route => !string.IsNullOrWhiteSpace(route));
+        var routeTemplate = CombineRouteTemplates(controllerRouteTemplate, actionRouteTemplate, controllerName);
+        return new ControllerActionInfo(true, routeTemplate, httpVerb, controllerName, isApiController);
+    }
+
+    private static string? CombineRouteTemplates(string? controllerRouteTemplate, string? actionRouteTemplate, string controllerName)
+    {
+        var normalizedControllerName = controllerName.EndsWith("Controller", StringComparison.Ordinal)
+            ? controllerName[..^"Controller".Length]
+            : controllerName;
+
+        static string ReplaceControllerToken(string? template, string controller)
+        {
+            if (string.IsNullOrWhiteSpace(template))
+            {
+                return string.Empty;
+            }
+
+            return template.Replace("[controller]", controller.ToLowerInvariant(), StringComparison.OrdinalIgnoreCase);
+        }
+
+        var controllerRoute = ReplaceControllerToken(controllerRouteTemplate, normalizedControllerName);
+        var actionRoute = ReplaceControllerToken(actionRouteTemplate, normalizedControllerName);
+
+        if (string.IsNullOrWhiteSpace(controllerRoute))
+        {
+            return actionRoute;
+        }
+
+        if (string.IsNullOrWhiteSpace(actionRoute))
+        {
+            return controllerRoute;
+        }
+
+        return $"{controllerRoute.TrimEnd('/')}/{actionRoute.TrimStart('/')}";
     }
 
     private static string? GetAttributeRoute(AttributeData attributeData)
@@ -556,12 +600,14 @@ public sealed class SolutionCodeIndexer : ICodeIndexer
             ["chunkText"] = chunk.ChunkText,
             ["routeTemplate"] = chunk.RouteTemplate,
             ["httpVerb"] = chunk.HttpVerb,
+            ["controllerName"] = chunk.ControllerName,
+            ["isApiController"] = chunk.IsApiController,
             ["snippet"] = chunk.SourceSnippet,
         };
     }
 
-    private sealed record ControllerActionInfo(bool IsControllerAction, string? RouteTemplate, string? HttpVerb)
+    private sealed record ControllerActionInfo(bool IsControllerAction, string? RouteTemplate, string? HttpVerb, string? ControllerName, bool IsApiController)
     {
-        public static readonly ControllerActionInfo None = new(false, null, null);
+        public static readonly ControllerActionInfo None = new(false, null, null, null, false);
     }
 }

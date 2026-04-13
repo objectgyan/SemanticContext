@@ -77,6 +77,20 @@ flowchart LR
 
 The application service is the single entry point for indexing and querying. HTTP and MCP are both thin adapters over that same service, so the core logic does not know or care how requests arrive. That makes it easier to reuse the same engine for local apps, an MCP server, CLI tools, or future automation.
 
+## Progress
+
+- [x] Solution scaffolded with separate contracts, application, indexer, retrieval, infrastructure, API, MCP, and test projects
+- [x] Roslyn-based semantic extraction and deterministic chunk generation
+- [x] Qdrant-backed vector storage adapter
+- [x] HTTP API with `/index`, `/query`, `/health`, and OpenAPI metadata
+- [x] Tests for extraction, retrieval, reranking, adapter delegation, and ChangedOnly cleanup
+- [x] Draft PR published to GitHub
+- [ ] Add richer controller-action metadata and symbol context shapes
+- [ ] Wire a real MCP SDK adapter
+- [ ] Add repository and project metadata resources for MCP
+- [ ] Improve semantic reranking signals further
+- [ ] Add richer index manifests for cross-run pruning and reconciliation
+
 ## Project Structure
 
 ```text

@@ -56,6 +56,9 @@ public sealed class IndexingTests
 
         Assert.Equal(33, GetInt(chunks["GetOrderAsync|ControllerAction|OrdersController"].Payload, "startLine"));
         Assert.Equal(38, GetInt(chunks["GetOrderAsync|ControllerAction|OrdersController"].Payload, "endLine"));
+        Assert.Equal("OrdersController", GetString(chunks["GetOrderAsync|ControllerAction|OrdersController"].Payload, "controllerName"));
+        Assert.Equal("api/orders/{id}", GetString(chunks["GetOrderAsync|ControllerAction|OrdersController"].Payload, "routeTemplate"));
+        Assert.True(GetBool(chunks["GetOrderAsync|ControllerAction|OrdersController"].Payload, "isApiController"));
     }
 
     [Fact]
@@ -187,5 +190,12 @@ public sealed class IndexingTests
         return payload.TryGetValue(key, out var value) && int.TryParse(value?.ToString(), out var parsed)
             ? parsed
             : 0;
+    }
+
+    private static bool GetBool(IReadOnlyDictionary<string, object?> payload, string key)
+    {
+        return payload.TryGetValue(key, out var value) && bool.TryParse(value?.ToString(), out var parsed)
+            ? parsed
+            : false;
     }
 }
