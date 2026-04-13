@@ -84,6 +84,7 @@ The application service is the single entry point for indexing and querying. HTT
 - [x] Qdrant-backed vector storage adapter
 - [x] HTTP API with `/index`, `/query`, `/health`, and OpenAPI metadata
 - [x] Tests for extraction, retrieval, reranking, adapter delegation, and ChangedOnly cleanup
+- [x] HTTP integration tests for validation and query delegation
 - [x] Draft PR published to GitHub
 - [x] Add richer controller-action metadata and symbol context shapes
 - [x] Add repository and project metadata resources for MCP
@@ -198,6 +199,7 @@ Implemented:
 - MCP adapter skeleton
 - Manifest-backed repository and project metadata resource shapes for MCP
 - Tests for extraction, filtering, reranking, delegation, and a small happy path
+- HTTP integration tests for validation and query delegation
 
 Not implemented yet:
 
