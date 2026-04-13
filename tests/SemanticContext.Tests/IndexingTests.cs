@@ -40,6 +40,7 @@ public sealed class IndexingTests
         Assert.Contains("OrdersController|Class|", chunks);
         Assert.Contains(chunks, pair => pair.Key.EndsWith("|Constructor|OrdersController", StringComparison.Ordinal));
         Assert.Contains("GetOrderAsync|ControllerAction|OrdersController", chunks);
+        Assert.Contains("using", GetString(chunks["GetOrderAsync|Method|OrderService"].Payload, "summary"), StringComparison.OrdinalIgnoreCase);
 
         Assert.Equal(14, GetInt(chunks["SourceName|Property|OrderService"].Payload, "startLine"));
         Assert.Equal(14, GetInt(chunks["SourceName|Property|OrderService"].Payload, "endLine"));
@@ -59,6 +60,7 @@ public sealed class IndexingTests
         Assert.Equal("OrdersController", GetString(chunks["GetOrderAsync|ControllerAction|OrdersController"].Payload, "controllerName"));
         Assert.Equal("api/orders/{id}", GetString(chunks["GetOrderAsync|ControllerAction|OrdersController"].Payload, "routeTemplate"));
         Assert.True(GetBool(chunks["GetOrderAsync|ControllerAction|OrdersController"].Payload, "isApiController"));
+        Assert.Contains("OrdersController", GetString(chunks["GetOrderAsync|ControllerAction|OrdersController"].Payload, "summary"), StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -85,6 +87,7 @@ public sealed class IndexingTests
         Assert.Contains("Kind: Method", firstChunkText);
         Assert.Contains("Summary:", firstChunkText);
         Assert.Contains("Code:", firstChunkText);
+        Assert.Contains("using", firstSummary, StringComparison.OrdinalIgnoreCase);
         Assert.False(string.IsNullOrWhiteSpace(firstSummary));
         Assert.False(string.IsNullOrWhiteSpace(firstHash));
 

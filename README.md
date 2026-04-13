@@ -91,6 +91,7 @@ The application service is the single entry point for indexing and querying. HTT
 - [x] Add richer controller-action metadata and symbol context shapes
 - [x] Add repository and project metadata resources for MCP
 - [x] Add stronger API validation and problem-details shaping
+- [x] Add richer response summaries for semantic search
 - [ ] Wire a real MCP SDK adapter
 - [x] Add richer index manifests for cross-run pruning and reconciliation
 
@@ -212,6 +213,7 @@ Implemented:
 - Manifest-backed repository and project metadata resource shapes for MCP
 - Atomic manifest persistence with cross-run pruning and reconciliation
 - Deterministic UUID-safe Qdrant point IDs with original ID preservation in payloads
+- Richer deterministic summaries for methods and controller actions
 - Tests for extraction, filtering, reranking, delegation, and a small happy path
 - HTTP integration tests for validation and query delegation
 - Qdrant live integration test and adapter ID mapping
@@ -230,9 +232,9 @@ Not implemented yet:
 2. Add MCP SDK wiring around the existing facade.
 3. Add a file watcher for continuous indexing.
 4. Add more fixture solutions and negative tests.
-5. Add richer response summaries for semantic search.
-6. Add auth and tenancy controls for multi-user deployments.
-7. Add manifest diffing for repository-level change summaries.
-8. Add real MCP tool/resource registration once the SDK layer is chosen.
-9. Add integration tests against a live Qdrant container.
-10. Add continuous embedding provider contract tests against a mock remote service.
+5. Add auth and tenancy controls for multi-user deployments.
+6. Add manifest diffing for repository-level change summaries.
+7. Add real MCP tool/resource registration once the SDK layer is chosen.
+8. Add integration tests against a live Qdrant container.
+9. Add continuous embedding provider contract tests against a mock remote service.
+10. Add a file watcher for continuous indexing.

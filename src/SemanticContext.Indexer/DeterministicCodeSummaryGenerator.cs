@@ -59,14 +59,16 @@ public sealed class DeterministicCodeSummaryGenerator : ICodeSummaryGenerator
         var nameTokens = SplitPascalCase(chunk.SymbolName);
         if (nameTokens.Count == 0)
         {
-            return $"Method on {chunk.ContainingType}.";
+            return $"Method on {chunk.ContainingType}{DescribeMethodDependencies(chunk)}.";
         }
 
         var action = nameTokens[0];
         var remainder = nameTokens.Skip(1).ToList();
-        return remainder.Count > 0
-            ? $"{action} {string.Join(" ", remainder)}."
-            : $"{action} logic for {chunk.ContainingType}.";
+        var baseDescription = remainder.Count > 0
+            ? $"{action} {string.Join(" ", remainder)}"
+            : $"{action} logic for {chunk.ContainingType}";
+
+        return $"{baseDescription}{DescribeMethodDependencies(chunk)}.";
     }
 
     private static string DescribeType(string noun, CodeChunk chunk)
@@ -90,6 +92,22 @@ public sealed class DeterministicCodeSummaryGenerator : ICodeSummaryGenerator
 
         var raw = xml[(start + "<summary>".Length)..end];
         return string.Join(" ", raw.Split(new[] { '\r', '\n', '\t' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+    }
+
+    private static string DescribeMethodDependencies(CodeChunk chunk)
+    {
+        var dependencies = chunk.Dependencies
+            .Where(dependency => !string.IsNullOrWhiteSpace(dependency))
+            .Distinct(StringComparer.Ordinal)
+            .Take(3)
+            .ToArray();
+
+        if (dependencies.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        return $" using {string.Join(", ", dependencies)}";
     }
 
     private static List<string> SplitPascalCase(string value)
