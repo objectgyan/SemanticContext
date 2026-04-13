@@ -60,6 +60,54 @@ public sealed class RetrievalTests
     }
 
     [Fact]
+    public async Task Controller_action_metadata_boosts_route_level_matches()
+    {
+        var store = new InMemoryVectorStore();
+        var embedding = new DeterministicHashEmbeddingProvider(Options.Create(new EmbeddingProviderOptions { Dimension = 256 }));
+
+        await SeedRecordAsync(
+            store,
+            embedding,
+            "TinySolution",
+            "TinySolution.Api",
+            "ValidateOrderAsync",
+            CodeSymbolKind.ControllerAction,
+            "Task<IActionResult> ValidateOrderAsync(Guid id, CancellationToken ct)",
+            "Validates an order before checkout.",
+            routeTemplate: "api/orders/{id}/validate",
+            httpVerb: "POST",
+            controllerName: "OrdersController",
+            isApiController: true);
+
+        await SeedRecordAsync(
+            store,
+            embedding,
+            "TinySolution",
+            "TinySolution.Core",
+            "ValidateOrderAsync",
+            CodeSymbolKind.Method,
+            "Task<ValidationResult> ValidateOrderAsync(Order order, CancellationToken ct)",
+            "Validates an order aggregate and returns validation details.");
+
+        var retriever = CreateRetriever(store);
+        var response = await retriever.QueryAsync(new CodeContextQuery
+        {
+            Query = "where is the order validation before checkout",
+            RepoName = "TinySolution",
+            TopK = 5,
+            Filters = new CodeContextFilters
+            {
+                SymbolKinds = [CodeSymbolKind.ControllerAction, CodeSymbolKind.Method],
+            },
+        });
+
+        Assert.NotEmpty(response.Results);
+        Assert.Equal(CodeSymbolKind.ControllerAction, response.Results[0].SymbolKind);
+        Assert.Equal("OrdersController", response.Results[0].ControllerName);
+        Assert.Equal("api/orders/{id}/validate", response.Results[0].RouteTemplate);
+    }
+
+    [Fact]
     public async Task End_to_end_index_and_query_returns_relevant_results()
     {
         var cacheDir = Path.Combine(Path.GetTempPath(), "semanticcontext-tests", Guid.NewGuid().ToString("N"));
@@ -119,7 +167,11 @@ public sealed class RetrievalTests
         string symbolName,
         CodeSymbolKind symbolKind,
         string signature,
-        string summary)
+        string summary,
+        string? routeTemplate = null,
+        string? httpVerb = null,
+        string? controllerName = null,
+        bool isApiController = false)
     {
         var input = string.Join('\n', symbolName, signature, summary, "snippet");
         var vector = await embedding.CreateEmbeddingAsync(input);
@@ -143,9 +195,12 @@ public sealed class RetrievalTests
                     ["snippet"] = "snippet",
                     ["attributes"] = Array.Empty<string>(),
                     ["dependencies"] = Array.Empty<string>(),
+                    ["routeTemplate"] = routeTemplate,
+                    ["httpVerb"] = httpVerb,
+                    ["controllerName"] = controllerName,
+                    ["isApiController"] = isApiController,
                 },
             },
         });
     }
 }
-

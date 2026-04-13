@@ -48,7 +48,11 @@ public sealed class VectorStoreCodeContextRetriever : ICodeContextRetriever
 
         var candidates = await _vectorStore.SearchAsync(searchRequest, cancellationToken).ConfigureAwait(false);
         var filtered = candidates.Where(candidate => MatchesFilters(candidate.Payload, query.RepoName, query.Filters)).ToList();
-        var reranked = filtered.Select(candidate => ScoreCandidate(query.Query, candidate)).OrderByDescending(candidate => candidate.Score).Take(query.TopK).ToList();
+        var reranked = filtered
+            .Select(candidate => ScoreCandidate(query.Query, candidate))
+            .OrderByDescending(candidate => candidate.Score)
+            .Take(query.TopK)
+            .ToList();
 
         return new CodeContextResponse
         {
@@ -67,9 +71,15 @@ public sealed class VectorStoreCodeContextRetriever : ICodeContextRetriever
         var chunkText = GetString(payload, "chunkText");
         var dependencies = GetStringList(payload, "dependencies");
         var symbolKindText = GetString(payload, "symbolKind");
+        var symbolKind = ParseSymbolKind(symbolKindText);
         var startLine = GetInt(payload, "startLine");
         var endLine = GetInt(payload, "endLine");
         var relatedSymbols = dependencies;
+        var routeTemplate = GetString(payload, "routeTemplate");
+        var httpVerb = GetString(payload, "httpVerb");
+        var controllerName = GetString(payload, "controllerName");
+        var projectName = GetString(payload, "projectName");
+        var normalizedQuery = Normalize(query);
 
         var queryTokens = Tokenize(query);
         var symbolTokens = Tokenize(symbolName);
@@ -77,48 +87,14 @@ public sealed class VectorStoreCodeContextRetriever : ICodeContextRetriever
         var signatureTokens = Tokenize(signature);
         var fileTokens = Tokenize(filePath);
         var chunkTokens = Tokenize(chunkText);
+        var dependencyTokens = Tokenize(string.Join(' ', dependencies));
+        var routeTokens = Tokenize(routeTemplate);
+        var controllerTokens = Tokenize(controllerName);
+        var projectTokens = Tokenize(projectName);
+        var fileNameTokens = Tokenize(Path.GetFileNameWithoutExtension(filePath));
 
         var score = candidate.Score;
-        if (!string.IsNullOrWhiteSpace(symbolName) && string.Equals(symbolName, query, StringComparison.OrdinalIgnoreCase))
-        {
-            score += 0.6;
-        }
-
-        if (!string.IsNullOrWhiteSpace(symbolName) && queryTokens.Overlaps(symbolTokens))
-        {
-            score += 0.25;
-        }
-
-        if (queryTokens.Overlaps(signatureTokens))
-        {
-            score += 0.15;
-        }
-
-        if (queryTokens.Overlaps(summaryTokens))
-        {
-            score += 0.12;
-        }
-
-        if (queryTokens.Overlaps(fileTokens))
-        {
-            score += 0.08;
-        }
-
-        if (queryTokens.Overlaps(chunkTokens))
-        {
-            score += 0.05;
-        }
-
-        if (dependencies.Count > 0 && queryTokens.Overlaps(Tokenize(string.Join(' ', dependencies))))
-        {
-            score += 0.04;
-        }
-
-        if (!string.IsNullOrWhiteSpace(signature) &&
-            query.Contains(signature, StringComparison.OrdinalIgnoreCase))
-        {
-            score += 0.35;
-        }
+        score += ComputeKeywordBoost(normalizedQuery, queryTokens, symbolKind, symbolName, symbolTokens, signature, signatureTokens, summary, summaryTokens, filePath, fileTokens, chunkTokens, dependencyTokens, routeTemplate, routeTokens, httpVerb, controllerName, controllerTokens, projectName, projectTokens, fileNameTokens);
 
         var snippet = GetString(payload, "snippet");
         if (string.IsNullOrWhiteSpace(snippet))
@@ -291,6 +267,122 @@ public sealed class VectorStoreCodeContextRetriever : ICodeContextRetriever
                 builder.Clear();
             }
         }
+    }
+
+    private double ComputeKeywordBoost(
+        string normalizedQuery,
+        HashSet<string> queryTokens,
+        CodeSymbolKind symbolKind,
+        string symbolName,
+        HashSet<string> symbolTokens,
+        string signature,
+        HashSet<string> signatureTokens,
+        string summary,
+        HashSet<string> summaryTokens,
+        string filePath,
+        HashSet<string> fileTokens,
+        HashSet<string> chunkTokens,
+        HashSet<string> dependencyTokens,
+        string routeTemplate,
+        HashSet<string> routeTokens,
+        string httpVerb,
+        string controllerName,
+        HashSet<string> controllerTokens,
+        string projectName,
+        HashSet<string> projectTokens,
+        HashSet<string> fileNameTokens)
+    {
+        var boost = 0.0;
+        var maxBoost = Math.Max(0, _options.KeywordBoostMax);
+
+        if (string.IsNullOrWhiteSpace(normalizedQuery))
+        {
+            return 0;
+        }
+
+        AddMatch(string.Equals(symbolName, normalizedQuery, StringComparison.OrdinalIgnoreCase), 1.0);
+        AddMatch(string.Equals(Path.GetFileNameWithoutExtension(filePath), normalizedQuery, StringComparison.OrdinalIgnoreCase), 0.55);
+        AddMatch(!string.IsNullOrWhiteSpace(signature) && Normalize(signature).Contains(normalizedQuery, StringComparison.OrdinalIgnoreCase), 0.45);
+        AddMatch(!string.IsNullOrWhiteSpace(summary) && Normalize(summary).Contains(normalizedQuery, StringComparison.OrdinalIgnoreCase), 0.28);
+        AddMatch(!string.IsNullOrWhiteSpace(routeTemplate) && Normalize(routeTemplate).Contains(normalizedQuery, StringComparison.OrdinalIgnoreCase), 0.32);
+        AddMatch(!string.IsNullOrWhiteSpace(httpVerb) && normalizedQuery.Contains(httpVerb, StringComparison.OrdinalIgnoreCase), 0.14);
+        AddMatch(!string.IsNullOrWhiteSpace(controllerName) && normalizedQuery.Contains(NormalizeControllerName(controllerName), StringComparison.OrdinalIgnoreCase), 0.34);
+
+        AddTokenOverlap(queryTokens, symbolTokens, 0.26);
+        AddTokenOverlap(queryTokens, signatureTokens, 0.18);
+        AddTokenOverlap(queryTokens, summaryTokens, 0.16);
+        AddTokenOverlap(queryTokens, fileTokens, 0.09);
+        AddTokenOverlap(queryTokens, chunkTokens, 0.06);
+        AddTokenOverlap(queryTokens, dependencyTokens, 0.08);
+        AddTokenOverlap(queryTokens, routeTokens, 0.14);
+        AddTokenOverlap(queryTokens, controllerTokens, 0.12);
+        AddTokenOverlap(queryTokens, projectTokens, 0.05);
+        AddTokenOverlap(queryTokens, fileNameTokens, 0.11);
+
+        if (symbolKind == CodeSymbolKind.ControllerAction)
+        {
+            boost += 0.28;
+        }
+
+        if (queryTokens.Contains("controller") && !string.IsNullOrWhiteSpace(routeTemplate))
+        {
+            boost += 0.22;
+        }
+
+        if (queryTokens.Contains("action") && !string.IsNullOrWhiteSpace(httpVerb))
+        {
+            boost += 0.12;
+        }
+
+        if (queryTokens.Contains("validation") && summaryTokens.Contains("validate"))
+        {
+            boost += 0.14;
+        }
+
+        return Math.Min(boost, maxBoost);
+
+        void AddMatch(bool match, double value)
+        {
+            if (match)
+            {
+                boost += value;
+            }
+        }
+
+        void AddTokenOverlap(HashSet<string> left, HashSet<string> right, double value)
+        {
+            if (left.Count > 0 && right.Count > 0 && left.Overlaps(right))
+            {
+                boost += value;
+            }
+        }
+    }
+
+    private static string Normalize(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var builder = new StringBuilder(value.Length);
+        foreach (var ch in value)
+        {
+            if (char.IsLetterOrDigit(ch) || char.IsWhiteSpace(ch))
+            {
+                builder.Append(char.ToLowerInvariant(ch));
+            }
+        }
+
+        return builder.ToString().Trim();
+    }
+
+    private static string NormalizeControllerName(string value)
+    {
+        var normalized = Normalize(value);
+        return normalized.EndsWith("controller", StringComparison.OrdinalIgnoreCase)
+            ? normalized[..^"controller".Length].Trim()
+            : normalized;
     }
 
     private sealed record CandidateScore(CodeContextResult Result, double Score);
