@@ -1,0 +1,39 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.2" />
+    <PackageReference Include="Microsoft.Build.Locator" Version="1.8.1" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.0.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="5.0.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SemanticContext.Contracts\SemanticContext.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\SemanticContext.Application\SemanticContext.Application.csproj" />
+    <ProjectReference Include="..\..\src\SemanticContext.Indexer\SemanticContext.Indexer.csproj" />
+    <ProjectReference Include="..\..\src\SemanticContext.Retrieval\SemanticContext.Retrieval.csproj" />
+    <ProjectReference Include="..\..\src\SemanticContext.Infrastructure\SemanticContext.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\SemanticContext.Api\SemanticContext.Api.csproj" />
+    <ProjectReference Include="..\..\src\SemanticContext.Mcp\SemanticContext.Mcp.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="Fixtures\**\*.cs" />
+    <Compile Remove="Fixtures\**\obj\**\*.cs" />
+  </ItemGroup>
+
+</Project>
